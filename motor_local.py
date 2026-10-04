@@ -98,8 +98,7 @@ FALSOS_POSITIVOS_NER_POR_IDIOMA = {
 
 
 def _es_falso_positivo_ner(valor: str, idioma: str) -> bool:
-    normalizado = " ".join(valor.casefold().strip(" 	
-.,;:!?¡¿").split())
+    normalizado = " ".join(valor.casefold().strip().strip(".,;:!?¡¿").split())
     return normalizado in FALSOS_POSITIVOS_NER_POR_IDIOMA.get(idioma, set())
 
 
