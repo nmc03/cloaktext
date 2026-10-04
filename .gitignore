@@ -14,3 +14,6 @@ venv/
 Thumbs.db
 .env
 .env.*
+
+# Clave local predeterminada (contiene datos sensibles)
+cloaktext.json

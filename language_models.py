@@ -42,13 +42,13 @@ class ModelInfo:
 
 
 MODEL_INFO: dict[str, ModelInfo] = {
-    "es": ModelInfo("es", "es_core_news_sm", "GNU GPL 3.0", 12_884_212, "e451a83d6df79b87e9eed0cb553f03e99e36a3bab18a7b79f0dcfd1fdf875e12"),
-    "en": ModelInfo("en", "en_core_web_sm", "MIT", 12_806_118, "1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85"),
-    "fr": ModelInfo("fr", "fr_core_news_sm", "LGPL-LR", 16_271_721, "7d6ad14cd5078e53147bfbf70fb9d433c6a3865b695fda2657140bbc59a27e29"),
-    "de": ModelInfo("de", "de_core_news_sm", "MIT", 14_639_490, "fec69fec52b1780f2d269d5af7582a5e28028738bd3190532459aeb473bfa3e7"),
-    "it": ModelInfo("it", "it_core_news_sm", "CC BY-NC-SA 3.0", 13_030_943, "3f617bf9a8ae0418953cf1fbf014e10272684c4229e882a7fd748b637d0100bf"),
-    "pt": ModelInfo("pt", "pt_core_news_sm", "CC BY-SA 4.0", 12_985_007, "c304fa04db3af73cd08a250feacf560506e15a2ec2469bd1b09f06847f6b455c"),
-    "ca": ModelInfo("ca", "ca_core_news_sm", "GNU GPL 3.0", 19_566_606, "e214211aa8da91c24ebdc453c2aa5f54fac09f44e01e65bcbdd3b0a5cb94d809"),
+    "es": ModelInfo("es", "es_core_news_lg", "GNU GPL 3.0", 567_975_270, "7c6c212715a12f31aacde3361754436945ff7376fb24cde57d0c277c9c9b050b"),
+    "en": ModelInfo("en", "en_core_web_lg", "MIT", 400_658_291, "293e9547a655b25499198ab15a525b05b9407a75f10255e405e8c3854329ab63"),
+    "fr": ModelInfo("fr", "fr_core_news_lg", "LGPL-LR", 571_831_376, "da5bf7fc860af64293d88638b4416b3de3a29005b785bfff67d09b06c77345de"),
+    "de": ModelInfo("de", "de_core_news_lg", "MIT", 567_843_151, "36fda650e476b54d5e87803635e36dadd1e8e034c4b5962088586d684f4c9fed"),
+    "it": ModelInfo("it", "it_core_news_lg", "CC BY-NC-SA 3.0", 567_872_943, "b78582d0b2d05fd6509995f68ab7452efed7a27c6fbc5a071e9a9787a58c1e87"),
+    "pt": ModelInfo("pt", "pt_core_news_lg", "CC BY-SA 4.0", 568_207_147, "2561c9a72a938d37141e9694e1a36d25061a44ce7e4f3bad2d3fa3bb836191af"),
+    "ca": ModelInfo("ca", "ca_core_news_lg", "GNU GPL 3.0", 574_014_041, "6cee39a577ebee3a170154efdd67b7d8c290e6cfd5b8c6a243dff3fbbee14766"),
 }
 
 MODELOS_SPACY = {codigo: info.package for codigo, info in MODEL_INFO.items()}
