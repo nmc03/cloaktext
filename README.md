@@ -73,7 +73,7 @@ Cada release incluye `SHA256SUMS.txt`.
 ### Verificar el ZIP
 
 ```powershell
-Get-FileHash .\CloakText-1.0.1-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.0.0-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -172,7 +172,7 @@ dist/
 │   ├── CloakText.exe
 │   ├── LICENSE.txt
 │   └── THIRD_PARTY_NOTICES.md
-├── CloakText-1.0.1-windows-x64.zip
+├── CloakText-1.0.0-windows-x64.zip
 └── SHA256SUMS.txt
 ```
 
@@ -217,7 +217,7 @@ Consulta [CONTRIBUTING.md](CONTRIBUTING.md).
 
 CloakText usa versionado semántico. Consulta [CHANGELOG.md](CHANGELOG.md).
 
-La versión estable preparada para publicación es **v1.0.1**.
+La primera versión pública preparada es **v1.0.0**.
 
 ## Licencia
 
