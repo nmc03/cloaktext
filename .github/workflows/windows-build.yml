@@ -39,7 +39,16 @@ jobs:
           if (-not (Test-Path "dist\CloakText\CloakText.exe")) {
             throw "CloakText.exe was not generated."
           }
-          Get-Item "dist\CloakText\CloakText.exe" | Format-List Name,Length,LastWriteTime
+          $exe = Get-Item "dist\CloakText\CloakText.exe"
+          $exe | Format-List Name,Length,LastWriteTime
+          $version = $exe.VersionInfo
+          $version | Format-List ProductName,FileDescription,ProductVersion,FileVersion
+          if ($version.ProductName -ne "CloakText") {
+            throw "Unexpected ProductName: $($version.ProductName)"
+          }
+          if ($version.FileDescription -ne "CloakText") {
+            throw "Unexpected FileDescription: $($version.FileDescription)"
+          }
           Get-Content "dist\SHA256SUMS.txt"
 
       - name: Upload Windows package
