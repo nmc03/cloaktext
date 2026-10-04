@@ -1,3 +1,4 @@
+import gc
 """Motor local de protección reversible de CloakText.
 
 Todo el procesamiento se realiza en el equipo. El motor mantiene como máximo
@@ -183,10 +184,14 @@ class GestorModeloUnico:
         logger.info("Modelo listo: %s", nombre)
 
     def _descargar_interno(self) -> None:
-        if self._nlp is not None:
+        anterior = self._nlp
+        if anterior is not None:
             logger.info("Liberando modelo de memoria: %s", MODELOS_SPACY.get(self._idioma))
         self._nlp = None
         self._idioma = None
+        if anterior is not None:
+            del anterior
+            gc.collect()
 
     def _limpiar_loop(self) -> None:
         while True:
