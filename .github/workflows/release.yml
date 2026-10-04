@@ -39,7 +39,7 @@ jobs:
       - name: Build Windows distribution
         run: python build.py
 
-      - name: Create GitHub release
+      - name: Publish GitHub release assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,22 +49,34 @@ jobs:
           $package = (Get-ChildItem "dist/CloakText-*-windows-x64.zip" | Select-Object -First 1).FullName
           if (-not $package) { throw "Windows package was not generated." }
           $checksum = (Resolve-Path "dist/SHA256SUMS.txt").Path
+          $title = "CloakText $tag"
 
-          $args = @(
-            "release", "create", $tag,
-            $package,
-            $checksum
-          )
-          $args += @(
-            "--verify-tag",
-            "--title", "CloakText $tag"
-          )
+          gh release view $tag *> $null
+          $exists = $LASTEXITCODE -eq 0
 
-          if (Test-Path $notes) {
-            $args += @("--notes-file", $notes)
+          if ($exists) {
+            gh release upload $tag $package $checksum --clobber
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            if (Test-Path $notes) {
+              gh release edit $tag --title $title --notes-file $notes
+            } else {
+              gh release edit $tag --title $title
+            }
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
-            $args += "--generate-notes"
+            $args = @(
+              "release", "create", $tag,
+              $package,
+              $checksum,
+              "--verify-tag",
+              "--title", $title
+            )
+            if (Test-Path $notes) {
+              $args += @("--notes-file", $notes)
+            } else {
+              $args += "--generate-notes"
+            }
+            & gh @args
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-
-          & gh @args
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
