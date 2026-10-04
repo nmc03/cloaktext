@@ -147,3 +147,20 @@ def test_extraer_wheel_valido(tmp_path):
 )
 def test_saludos_obvios_no_se_tratan_como_entidades(idioma, texto):
     assert _es_falso_positivo_ner(texto, idioma)
+
+
+def test_descargar_modelo_fuerza_recoleccion_de_memoria(monkeypatch):
+    import motor_local
+
+    gestor = motor_local.GestorModeloUnico.__new__(motor_local.GestorModeloUnico)
+    gestor._nlp = object()
+    gestor._idioma = "es"
+
+    llamadas = []
+    monkeypatch.setattr(motor_local.gc, "collect", lambda: llamadas.append(True))
+
+    gestor._descargar_interno()
+
+    assert gestor._nlp is None
+    assert gestor._idioma is None
+    assert llamadas == [True]
