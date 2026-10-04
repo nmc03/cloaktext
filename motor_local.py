@@ -86,6 +86,22 @@ PATRONES_POR_IDIOMA = {
 
 ETIQUETAS_SPACY = {"PER": "PERSONA", "PERSON": "PERSONA", "LOC": "LUGAR", "GPE": "LUGAR", "ORG": "ORG"}
 
+FALSOS_POSITIVOS_NER_POR_IDIOMA = {
+    "es": {"hola", "gracias", "adiós", "buenos días", "buenas tardes", "buenas noches"},
+    "en": {"hello", "hi", "thanks", "thank you", "goodbye"},
+    "fr": {"bonjour", "salut", "merci", "au revoir"},
+    "de": {"hallo", "danke", "tschüss", "guten morgen", "guten tag", "guten abend"},
+    "it": {"ciao", "grazie", "buongiorno", "buonasera"},
+    "pt": {"olá", "oi", "obrigado", "obrigada", "bom dia", "boa tarde", "boa noite"},
+    "ca": {"hola", "gràcies", "adéu", "bon dia", "bona tarda", "bona nit"},
+}
+
+
+def _es_falso_positivo_ner(valor: str, idioma: str) -> bool:
+    normalizado = " ".join(valor.casefold().strip(" 	
+.,;:!?¡¿").split())
+    return normalizado in FALSOS_POSITIVOS_NER_POR_IDIOMA.get(idioma, set())
+
 
 class ModeloNoDisponibleError(ValueError):
     def __init__(self, idioma: str, modelo: str):
@@ -322,6 +338,8 @@ class MotorLocal:
                 for entidad in doc.ents:
                     tipo = ETIQUETAS_SPACY.get(entidad.label_)
                     if tipo and tipo in activos:
+                        if _es_falso_positivo_ner(entidad.text, idioma):
+                            continue
                         candidatos.append(
                             (
                                 offset + entidad.start_char,

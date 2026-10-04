@@ -4,6 +4,7 @@ import pytest
 
 from motor_local import (
     MotorLocal,
+    _es_falso_positivo_ner,
     _iban_valido,
     _seleccionar_no_solapados,
     _trocear_texto,
@@ -129,3 +130,20 @@ def test_extraer_wheel_valido(tmp_path):
     destino = tmp_path / "out"
     _extraer_wheel_seguro(wheel, destino)
     assert (destino / "modelo" / "modelo-3.8.0" / "meta.json").is_file()
+
+
+@pytest.mark.parametrize(
+    ("idioma", "texto"),
+    [
+        ("es", "hola"),
+        ("es", "Hola!"),
+        ("en", "hello"),
+        ("fr", "bonjour"),
+        ("de", "hallo"),
+        ("it", "ciao"),
+        ("pt", "olá"),
+        ("ca", "hola"),
+    ],
+)
+def test_saludos_obvios_no_se_tratan_como_entidades(idioma, texto):
+    assert _es_falso_positivo_ner(texto, idioma)
