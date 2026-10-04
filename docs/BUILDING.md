@@ -47,7 +47,7 @@ dist/
 ├── CloakText/
 │   ├── CloakText.exe
 │   └── ...
-├── CloakText-1.0.0-windows-x64.zip
+├── CloakText-1.0.1-windows-x64.zip
 └── SHA256SUMS.txt
 ```
 
@@ -78,6 +78,6 @@ Antes del tag:
 5. crea `vX.Y.Z`.
 
 ```powershell
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
