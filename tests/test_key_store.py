@@ -32,3 +32,21 @@ def test_invalid_key_is_rejected(tmp_path):
     path.write_text("[]", encoding="utf-8")
     with pytest.raises(ValueError, match="objeto"):
         load_key(path)
+
+
+def test_models_live_next_to_portable_app(tmp_path, monkeypatch):
+    from language_models import directorio_modelos
+
+    monkeypatch.setenv("CLOAKTEXT_APP_DIR", str(tmp_path))
+    monkeypatch.delenv("CLOAKTEXT_DATA_DIR", raising=False)
+
+    assert directorio_modelos() == tmp_path.resolve() / "models"
+
+
+def test_models_data_override_is_only_for_test_and_dev(tmp_path, monkeypatch):
+    from language_models import directorio_modelos
+
+    override = tmp_path / "isolated-data"
+    monkeypatch.setenv("CLOAKTEXT_DATA_DIR", str(override))
+
+    assert directorio_modelos() == override.resolve() / "models"

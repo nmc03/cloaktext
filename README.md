@@ -97,9 +97,20 @@ Esto mantiene clara la licencia MIT de CloakText y evita mezclar dentro del ZIP 
 
 ## Dónde se guardan los modelos
 
-En Windows, los modelos se conservan en:
+Como CloakText es portable, los modelos se conservan junto al ejecutable:
 
-%LOCALAPPDATA%\CloakText\models
+CloakText\models
+
+La carpeta portable queda autocontenida:
+
+```text
+CloakText/
+├── CloakText.exe
+├── cloaktext.json
+└── models/
+```
+
+Si mueves toda la carpeta, se mueven también la clave predeterminada y los modelos ya descargados. La carpeta debe estar en una ubicación donde el usuario tenga permisos de escritura.
 
 Cada idioma queda en su propia carpeta:
 

@@ -8,11 +8,12 @@ import importlib.util
 import os
 from pathlib import Path, PurePosixPath
 import shutil
-import sys
 import tempfile
 from typing import Callable
 from urllib.request import Request, urlopen
 import zipfile
+
+from key_store import application_directory
 
 MODEL_VERSION = "3.8.0"
 
@@ -56,16 +57,16 @@ IDIOMAS_SOPORTADOS = frozenset(MODEL_INFO)
 
 
 def directorio_datos() -> Path:
+    """Raíz portable para datos descargados por la aplicación.
+
+    En producción coincide con la carpeta que contiene CloakText.exe.
+    CLOAKTEXT_DATA_DIR se conserva únicamente como override para tests y
+    desarrollo automatizado.
+    """
     override = os.environ.get("CLOAKTEXT_DATA_DIR")
     if override:
-        return Path(override).expanduser()
-    if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-        return base / "CloakText"
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "CloakText"
-    base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    return base / "CloakText"
+        return Path(override).expanduser().resolve()
+    return application_directory()
 
 
 def directorio_modelos() -> Path:
