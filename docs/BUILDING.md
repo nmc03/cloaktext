@@ -55,7 +55,7 @@ dist/
 
 No forman parte del ZIP de CloakText.
 
-En primer uso, la aplicación descarga el paquete elegido desde los releases oficiales de `explosion/spacy-models`, verifica el tamaño y SHA-256 fijados y lo extrae de forma segura dentro del perfil local del usuario.
+En primer uso, la aplicación descarga el paquete elegido desde los releases oficiales de `explosion/spacy-models`, verifica el tamaño y SHA-256 fijados y lo extrae de forma segura en la carpeta `models` situada junto a `CloakText.exe`.
 
 Esto evita redistribuir dentro del binario paquetes con licencias heterogéneas.
 

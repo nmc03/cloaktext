@@ -14,6 +14,7 @@ Primera versión preparada para distribución de escritorio.
 - `cloaktext.json` predeterminado y persistente junto a la aplicación; se actualiza automáticamente y no se muestra en pantalla.
 - Exportación de la clave JSON y selección opcional de un JSON personalizado al restaurar.
 - Modelos spaCy grandes (`lg`) para los siete idiomas, descargados bajo demanda y verificados por SHA-256.
+- Los modelos se guardan en la carpeta portable `models` junto al ejecutable.
 
 - Interfaz responsive orientada a usuarios no técnicos.
 - Carga y guardado de claves de restauración en JSON.
