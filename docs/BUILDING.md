@@ -21,7 +21,7 @@ python -m pip install -r requirements-dev.txt
 
 ```powershell
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
 python -m pip check
 ```
 

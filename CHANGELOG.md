@@ -8,6 +8,9 @@ Primera versión preparada para distribución de escritorio.
 
 ### Añadido
 
+- Dos acciones de limpieza separadas: Limpiar para los cuadros de texto y Limpiar JSON con confirmación.
+- Logo embebido en la interfaz para que también se muestre en el encabezado del ejecutable.
+
 - `cloaktext.json` predeterminado y persistente junto a la aplicación; se actualiza automáticamente y no se muestra en pantalla.
 - Exportación de la clave JSON y selección opcional de un JSON personalizado al restaurar.
 - Modelos spaCy grandes (`lg`) para los siete idiomas, descargados bajo demanda y verificados por SHA-256.
@@ -23,7 +26,7 @@ Primera versión preparada para distribución de escritorio.
 - Pruebas automatizadas del motor.
 - CI para Linux y compilación reproducible para Windows.
 - Paquete Windows portable sin redistribuir modelos lingüísticos de terceros.
-- Descarga opcional de modelos spaCy compactos desde el origen oficial con verificación SHA-256.
+- Descarga opcional de modelos spaCy grandes desde el origen oficial con verificación SHA-256.
 - Icono y metadatos del ejecutable.
 
 ### Cambiado
@@ -36,6 +39,10 @@ Primera versión preparada para distribución de escritorio.
 - El motor evita colisiones con tokens ya presentes en el texto.
 
 ### Corregido
+
+- Liberación inmediata del modelo grande anterior al cambiar de idioma, con recolección de memoria forzada.
+- Los cuadros de texto ocupan todo el ancho disponible dentro de cada tarjeta.
+- La descripción del proceso Windows se muestra como CloakText.
 
 - Filtro conservador de falsos positivos NER para saludos conversacionales obvios como `hola`.
 

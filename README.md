@@ -95,6 +95,28 @@ Después de esa instalación inicial, el análisis de ese idioma vuelve a ser lo
 
 Esto mantiene clara la licencia MIT de CloakText y evita mezclar dentro del ZIP modelos que tienen licencias distintas.
 
+## Dónde se guardan los modelos
+
+En Windows, los modelos se conservan en:
+
+%LOCALAPPDATA%\CloakText\models
+
+Cada idioma queda en su propia carpeta:
+
+- Español: es_core_news_lg
+- Inglés: en_core_web_lg
+- Francés: fr_core_news_lg
+- Alemán: de_core_news_lg
+- Italiano: it_core_news_lg
+- Portugués: pt_core_news_lg
+- Catalán: ca_core_news_lg
+
+El archivo wheel se descarga temporalmente desde los releases oficiales de
+explosion/spacy-models, se verifica por tamaño y SHA-256, se extrae en esa
+carpeta y después se elimina el archivo temporal. Al cambiar de idioma,
+CloakText libera inmediatamente de RAM el modelo anterior antes de usar el
+nuevo.
+
 ## Uso
 
 ### Proteger un texto
@@ -102,7 +124,7 @@ Esto mantiene clara la licencia MIT de CloakText y evita mezclar dentro del ZIP 
 1. Selecciona **Proteger**.
 2. Elige el idioma.
 3. Pega el texto.
-4. Si es la primera vez que usas ese idioma, pulsa **Instalar idioma** y revisa su licencia.
+4. Si es la primera vez que usas ese idioma, pulsa **Preparar idioma** y revisa su licencia.
 5. Pulsa **Proteger datos**.
 6. Revisa el texto protegido antes de compartirlo.
 7. CloakText actualiza automáticamente `cloaktext.json` junto al ejecutable.
@@ -159,7 +181,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
 
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
 python -m pip check
 
 python build.py
@@ -185,7 +207,7 @@ Consulta [docs/BUILDING.md](docs/BUILDING.md) para el proceso de publicación.
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
 python -m pip check
 ```
 
