@@ -106,7 +106,7 @@ def test_modelos_tienen_hash_y_url_fijados():
     from language_models import MODEL_INFO
     assert len(MODEL_INFO) == 7
     assert all(len(info.sha256) == 64 for info in MODEL_INFO.values())
-    assert all(info.url.startswith("https://github.com/explosion/spacy-models/") for info in MODEL_INFO.values())
+    assert all(info.url.startswith("https://github.com/explosion/spacy-models/") for info in MODEL_INFO.values())\n    assert all(info.package.endswith("_lg") for info in MODEL_INFO.values())
 
 
 def test_extraer_wheel_rechaza_path_traversal(tmp_path):
