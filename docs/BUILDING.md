@@ -6,7 +6,7 @@
 - Python 3.12 recomendado.
 - Git.
 
-Los modelos spaCy no se incluyen en la distribución base.
+Los modelos spaCy `lg` no se incluyen en la distribución base.
 
 ## Crear el entorno
 
