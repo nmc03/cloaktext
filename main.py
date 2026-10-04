@@ -89,7 +89,7 @@ class CloakTextApp:
             label="Idioma del texto",
             width=220,
             value="es",
-            on_change=self._on_idioma_cambiado,
+            on_select=self._on_idioma_cambiado,
             options=[
                 ft.DropdownOption(key=codigo, text=NOMBRES_IDIOMA[codigo])
                 for codigo in sorted(IDIOMAS_SOPORTADOS, key=lambda c: NOMBRES_IDIOMA[c])

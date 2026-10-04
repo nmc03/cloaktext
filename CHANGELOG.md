@@ -2,6 +2,13 @@
 
 El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
 
+## [1.0.1] - 2026-10-04
+
+### Corregido
+
+- La aplicación vuelve a iniciar correctamente con Flet 1.0.3: el selector de idioma usa el evento `on_select` compatible con `Dropdown`.
+- Añadida una prueba de construcción de la interfaz para detectar incompatibilidades de API de Flet antes de generar el ejecutable.
+
 ## [1.0.0] - 2026-10-03
 
 Primera versión preparada para distribución de escritorio.
