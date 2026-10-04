@@ -79,7 +79,7 @@ Get-Content .\SHA256SUMS.txt
 
 Los hashes deben coincidir.
 
-La primera versión no está firmada digitalmente, por lo que Windows SmartScreen puede mostrar una advertencia.
+CloakText 1.0.0 no está firmado digitalmente. Windows puede mostrar “Editor desconocido” o una advertencia de SmartScreen. Verifica el SHA-256 publicado en la release antes de ejecutar el archivo.
 
 ## Primer uso
 
