@@ -12,6 +12,7 @@ import re
 
 import flet as ft
 
+from branding import LOGO_BYTES
 from motor_local import IDIOMAS_SOPORTADOS, ModeloNoDisponibleError, MotorLocal
 from language_models import info_modelo
 from key_store import default_key_path, load_key, save_key_atomic
@@ -127,6 +128,7 @@ class CloakTextApp:
 
         self.txt_entrada = ft.TextField(
             label="Texto a proteger",
+            margin=ft.Margin.symmetric(horizontal=4, vertical=2),
             hint_text="Pega aquí el texto con datos sensibles que quieres proteger…",
             multiline=True,
             min_lines=12,
@@ -171,14 +173,23 @@ class CloakTextApp:
             icon=ft.Icons.SHIELD_OUTLINED,
             on_click=self._on_ejecutar,
         )
-        self.btn_limpiar = ft.TextButton(
+        self.btn_limpiar_texto = ft.OutlinedButton(
             content="Limpiar",
-            icon=ft.Icons.DELETE_OUTLINE,
-            on_click=self._on_limpiar,
+            icon=ft.Icons.CLEAR_ALL_OUTLINED,
+            on_click=self._on_limpiar_texto,
+            tooltip="Limpia los cuadros de texto sin tocar cloaktext.json.",
+        )
+        self.btn_limpiar_json = ft.TextButton(
+            content="Limpiar JSON",
+            icon=ft.Icons.DELETE_FOREVER_OUTLINED,
+            on_click=self._on_limpiar_json,
+            tooltip="Vacía la clave predeterminada cloaktext.json.",
+            style=ft.ButtonStyle(color=ft.Colors.ERROR),
         )
 
         self.txt_resultado = ft.TextField(
             label="Texto protegido",
+            margin=ft.Margin.symmetric(horizontal=4, vertical=2),
             hint_text="El resultado aparecerá aquí.",
             multiline=True,
             min_lines=12,
@@ -235,10 +246,11 @@ class CloakTextApp:
                         bgcolor=ft.Colors.WHITE_12,
                         alignment=ft.Alignment.CENTER,
                         content=ft.Image(
-                            src="cloaktext-icon.png",
+                            src=LOGO_BYTES,
                             width=38,
                             height=38,
                             fit=ft.BoxFit.CONTAIN,
+                            semantics_label="CloakText",
                         ),
                     ),
                     ft.Column(
@@ -335,7 +347,8 @@ class CloakTextApp:
                         controls=[
                             self.txt_estado_proceso,
                             ft.Container(expand=True),
-                            self.btn_limpiar,
+                            self.btn_limpiar_texto,
+                            self.btn_limpiar_json,
                             self.btn_ejecutar,
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -343,6 +356,7 @@ class CloakTextApp:
                     ft.Divider(height=1),
                     self.estado_modelo,
                 ],
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 spacing=14,
             ),
         )
@@ -368,6 +382,7 @@ class CloakTextApp:
                         alignment=ft.MainAxisAlignment.END,
                     ),
                 ],
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 spacing=14,
             ),
         )
@@ -520,6 +535,10 @@ class CloakTextApp:
         self.txt_contador.update()
 
     def _on_idioma_cambiado(self, _event) -> None:
+        seleccionado = self.dd_idioma.value or "es"
+        cargado = self.motor.idioma_cargado()
+        if cargado is not None and cargado != seleccionado:
+            self.motor.descargar_modelo()
         self._refrescar_estado_modelo()
         self.page.update()
 
@@ -747,13 +766,59 @@ class CloakTextApp:
         self.txt_estado_proceso.value = ""
         self._snack("Texto restaurado.")
 
-    def _on_limpiar(self, _event) -> None:
+    def _on_limpiar_texto(self, _event) -> None:
         if self._busy:
             return
         self.txt_entrada.value = ""
         self.txt_contador.value = "0 caracteres"
         self._limpiar_resultado()
         self.page.update()
+
+    def _on_limpiar_json(self, _event) -> None:
+        if self._busy:
+            return
+        dialogo = ft.AlertDialog(
+            modal=True,
+            icon=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.ERROR),
+            title=ft.Text("Limpiar cloaktext.json"),
+            content=ft.Text(
+                "Esto vaciará la clave predeterminada cloaktext.json y eliminará "
+                "todas las asociaciones guardadas. Los textos protegidos con esas "
+                "asociaciones dejarán de poder restaurarse con el JSON predeterminado. "
+                "No se borrarán las copias JSON que hayas exportado ni los archivos "
+                "personalizados que tengas en otras ubicaciones."
+            ),
+            actions=[
+                ft.TextButton(
+                    content="Cancelar",
+                    on_click=lambda _: self.page.pop_dialog(),
+                ),
+                ft.Button(
+                    content="Limpiar JSON",
+                    icon=ft.Icons.DELETE_FOREVER_OUTLINED,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.ERROR,
+                        color=ft.Colors.ON_ERROR,
+                    ),
+                    on_click=self._confirmar_limpiar_json,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialogo)
+
+    def _confirmar_limpiar_json(self, _event) -> None:
+        try:
+            save_key_atomic({})
+        except OSError:
+            logger.exception("No se pudo limpiar cloaktext.json")
+            self._snack("No se pudo limpiar cloaktext.json.")
+            return
+        self.mapa_actual = {}
+        self.page.pop_dialog()
+        self._snack(
+            "cloaktext.json se ha vaciado. Las copias exportadas no se han modificado."
+        )
 
     def _limpiar_resultado(self) -> None:
         self.mapa_actual = {}
@@ -767,7 +832,8 @@ class CloakTextApp:
         self._busy = activo
         self.barra_progreso.visible = activo
         self.btn_ejecutar.disabled = activo
-        self.btn_limpiar.disabled = activo
+        self.btn_limpiar_texto.disabled = activo
+        self.btn_limpiar_json.disabled = activo
         self.btn_modo_anon.disabled = activo
         self.btn_modo_resta.disabled = activo
         self.dd_idioma.disabled = activo
