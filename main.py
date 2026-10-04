@@ -7,12 +7,14 @@ from collections import Counter
 from datetime import datetime
 import json
 import logging
+from pathlib import Path
 import re
 
 import flet as ft
 
 from motor_local import IDIOMAS_SOPORTADOS, ModeloNoDisponibleError, MotorLocal
 from language_models import info_modelo
+from key_store import default_key_path, load_key, save_key_atomic
 from version import __version__
 
 logging.basicConfig(
@@ -59,10 +61,14 @@ class CloakTextApp:
         self.clipboard = ft.Clipboard()
         self.modo = "anon"
         self.mapa_actual: dict[str, str] = {}
+        self.mapa_restauracion_personalizado: dict[str, str] | None = None
+        self.nombre_clave_personalizada: str | None = None
+        self.ruta_clave_predeterminada = default_key_path()
         self._busy = False
 
         self._configurar_pagina()
         self._construir_ui()
+        self._inicializar_clave_predeterminada()
         page.run_task(self._actualizar_estado_periodico)
 
     def _configurar_pagina(self) -> None:
@@ -134,18 +140,22 @@ class CloakTextApp:
             color=ft.Colors.OUTLINE,
         )
 
-        self.txt_diccionario = ft.TextField(
-            label="Clave de restauración (JSON)",
-            hint_text='Pega la clave JSON generada por CloakText, por ejemplo {"[PERSONA_1000]": "Ana"}',
-            multiline=True,
-            min_lines=5,
-            max_lines=9,
+        self.txt_clave_activa = ft.Text(
+            "Restauración: cloaktext.json predeterminado",
+            size=12,
+            color=ft.Colors.OUTLINE,
             visible=False,
         )
         self.btn_cargar_diccionario = ft.OutlinedButton(
-            content="Abrir clave JSON",
+            content="Usar otro JSON",
             icon=ft.Icons.FILE_OPEN_OUTLINED,
             on_click=self._on_cargar_diccionario,
+            visible=False,
+        )
+        self.btn_usar_predeterminado = ft.TextButton(
+            content="Usar cloaktext.json",
+            icon=ft.Icons.RESTART_ALT,
+            on_click=self._on_usar_predeterminado,
             visible=False,
         )
 
@@ -187,14 +197,6 @@ class CloakTextApp:
             disabled=True,
         )
 
-        self.txt_mapa_resultado = ft.TextField(
-            label="Clave de restauración (JSON)",
-            multiline=True,
-            min_lines=5,
-            max_lines=9,
-            read_only=True,
-            visible=False,
-        )
         self.aviso_mapa = ft.Container(
             visible=False,
             padding=12,
@@ -204,7 +206,8 @@ class CloakTextApp:
                 controls=[
                     ft.Icon(ft.Icons.KEY_OUTLINED, color=ft.Colors.AMBER_900, size=20),
                     ft.Text(
-                        "La clave contiene los datos originales. Guárdala como información confidencial.",
+                        "La clave se guarda automáticamente en cloaktext.json junto a la aplicación. "
+                        "Contiene datos originales: protégela como información confidencial.",
                         size=12,
                         color=ft.Colors.AMBER_900,
                         expand=True,
@@ -213,17 +216,11 @@ class CloakTextApp:
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
-        self.btn_copiar_diccionario = ft.OutlinedButton(
-            content="Copiar clave",
-            icon=ft.Icons.CONTENT_COPY,
-            on_click=self._on_copiar_diccionario,
-            visible=False,
-        )
-        self.btn_guardar_diccionario = ft.OutlinedButton(
-            content="Guardar clave",
-            icon=ft.Icons.SAVE_OUTLINED,
+        self.btn_exportar_diccionario = ft.OutlinedButton(
+            content="Exportar JSON",
+            icon=ft.Icons.SAVE_ALT_OUTLINED,
             on_click=self._on_guardar_diccionario,
-            visible=False,
+            tooltip="Exporta una copia de cloaktext.json a la ubicación que elijas.",
         )
 
         self.cabecera = ft.Container(
@@ -322,10 +319,16 @@ class CloakTextApp:
                         controls=[self.txt_contador],
                         alignment=ft.MainAxisAlignment.END,
                     ),
-                    self.txt_diccionario,
                     ft.Row(
-                        controls=[self.btn_cargar_diccionario],
+                        controls=[
+                            self.txt_clave_activa,
+                            ft.Container(expand=True),
+                            self.btn_usar_predeterminado,
+                            self.btn_cargar_diccionario,
+                        ],
                         alignment=ft.MainAxisAlignment.END,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        visible=True,
                     ),
                     self.barra_progreso,
                     ft.Row(
@@ -345,13 +348,6 @@ class CloakTextApp:
         )
         card_entrada.col = {"xs": 12, "lg": 6}
 
-        self.fila_acciones_mapa = ft.Row(
-            controls=[self.btn_copiar_diccionario, self.btn_guardar_diccionario],
-            alignment=ft.MainAxisAlignment.END,
-            wrap=True,
-            visible=False,
-        )
-
         card_resultado = self._card(
             "2. Texto protegido",
             "Comprueba el resultado antes de compartirlo. CloakText resalta lo que ha protegido automáticamente.",
@@ -367,8 +363,10 @@ class CloakTextApp:
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     self.aviso_mapa,
-                    self.txt_mapa_resultado,
-                    self.fila_acciones_mapa,
+                    ft.Row(
+                        controls=[self.btn_exportar_diccionario],
+                        alignment=ft.MainAxisAlignment.END,
+                    ),
                 ],
                 spacing=14,
             ),
@@ -481,9 +479,39 @@ class CloakTextApp:
             if en_anon
             else "El texto restaurado aparecerá aquí."
         )
-        self.txt_diccionario.visible = not en_anon
+        self.txt_clave_activa.visible = not en_anon
         self.btn_cargar_diccionario.visible = not en_anon
+        self.btn_usar_predeterminado.visible = (
+            not en_anon and self.mapa_restauracion_personalizado is not None
+        )
+        self._actualizar_texto_clave_activa()
         self._limpiar_resultado()
+
+    def _inicializar_clave_predeterminada(self) -> None:
+        try:
+            if not self.ruta_clave_predeterminada.exists():
+                save_key_atomic({})
+            else:
+                mapa = load_key()
+                self.motor.validar_mapa(mapa)
+        except (OSError, ValueError):
+            logger.exception("No se pudo inicializar cloaktext.json")
+
+    def _actualizar_texto_clave_activa(self) -> None:
+        if self.mapa_restauracion_personalizado is not None:
+            self.txt_clave_activa.value = (
+                f"Restauración: {self.nombre_clave_personalizada or 'JSON personalizado'}"
+            )
+        else:
+            self.txt_clave_activa.value = "Restauración: cloaktext.json predeterminado"
+
+    def _on_usar_predeterminado(self, _event) -> None:
+        self.mapa_restauracion_personalizado = None
+        self.nombre_clave_personalizada = None
+        self.btn_usar_predeterminado.visible = False
+        self._actualizar_texto_clave_activa()
+        self.page.update()
+        self._snack("Se usará cloaktext.json para restaurar.")
 
     def _on_texto_cambiado(self, _event) -> None:
         texto = self.txt_entrada.value or ""
@@ -575,24 +603,25 @@ class CloakTextApp:
             await self.clipboard.set(self.txt_resultado.value)
             self._snack("Texto protegido copiado.")
 
-    async def _on_copiar_diccionario(self, _event) -> None:
-        if self.txt_mapa_resultado.value:
-            await self.clipboard.set(self.txt_mapa_resultado.value)
-            self._snack("Clave copiada. Recuerda que contiene datos originales.")
-
     async def _on_guardar_diccionario(self, _event) -> None:
-        if not self.txt_mapa_resultado.value:
+        try:
+            mapa = await asyncio.to_thread(load_key)
+            self.motor.validar_mapa(mapa)
+        except (OSError, ValueError) as exc:
+            self._snack(f"No se puede exportar la clave predeterminada: {exc}")
             return
+
         nombre = f"cloaktext-clave-{datetime.now():%Y%m%d-%H%M%S}.json"
+        contenido = (json.dumps(mapa, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         ruta = await ft.FilePicker().save_file(
-            dialog_title="Guardar clave de restauración",
+            dialog_title="Exportar clave de restauración",
             file_name=nombre,
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["json"],
-            src_bytes=self.txt_mapa_resultado.value.encode("utf-8"),
+            src_bytes=contenido,
         )
         if ruta or self.page.web:
-            self._snack("Clave guardada. Consérvala como información confidencial.")
+            self._snack("Copia JSON exportada.")
 
     async def _on_cargar_diccionario(self, _event) -> None:
         archivos = await ft.FilePicker().pick_files(
@@ -617,9 +646,12 @@ class CloakTextApp:
             self._snack("El archivo no contiene una clave válida de CloakText.")
             return
 
-        self.txt_diccionario.value = json.dumps(mapa, ensure_ascii=False, indent=2)
-        self.txt_diccionario.update()
-        self._snack(f"Clave cargada: {len(mapa)} elementos.")
+        self.mapa_restauracion_personalizado = mapa
+        self.nombre_clave_personalizada = archivo.name or "JSON personalizado"
+        self._actualizar_texto_clave_activa()
+        self.btn_usar_predeterminado.visible = True
+        self.page.update()
+        self._snack(f"JSON personalizado listo: {len(mapa)} elementos.")
 
     async def _on_ejecutar(self, _event) -> None:
         if self._busy:
@@ -655,7 +687,9 @@ class CloakTextApp:
         self.txt_estado_proceso.value = "Analizando texto…"
         self.page.update()
 
-        mapa: dict[str, str] = {}
+        mapa = await asyncio.to_thread(load_key)
+        self.motor.validar_mapa(mapa)
+
         resultado = await asyncio.to_thread(
             self.motor.anonimizar,
             texto,
@@ -663,60 +697,52 @@ class CloakTextApp:
             None,
             idioma,
         )
+        await asyncio.to_thread(save_key_atomic, mapa)
 
         self.mapa_actual = mapa
         self.txt_resultado.value = resultado
-        self.txt_mapa_resultado.value = json.dumps(mapa, ensure_ascii=False, indent=2)
-        self.txt_mapa_resultado.visible = bool(mapa)
-        self.aviso_mapa.visible = bool(mapa)
-        self.btn_copiar_diccionario.visible = bool(mapa)
-        self.btn_guardar_diccionario.visible = bool(mapa)
-        self.fila_acciones_mapa.visible = bool(mapa)
+        self.aviso_mapa.visible = True
         self.btn_copiar_resultado.disabled = not bool(resultado)
 
-        conteo = Counter()
-        for token in mapa:
-            match = TOKEN_TIPO_RE.fullmatch(token)
-            if match:
-                conteo[match.group(1)] += 1
+        tokens_actuales = list(TOKEN_TIPO_RE.finditer(resultado))
+        conteo = Counter(match.group(1) for match in tokens_actuales)
 
-        if not mapa:
+        if not tokens_actuales:
             self.txt_resumen.value = "No se han detectado datos sensibles automáticamente. Revisa el texto antes de compartirlo."
         else:
             detalle = " · ".join(f"{tipo}: {cantidad}" for tipo, cantidad in sorted(conteo.items()))
-            self.txt_resumen.value = f"{len(mapa)} datos protegidos · {detalle}"
+            self.txt_resumen.value = f"{len(tokens_actuales)} datos protegidos · {detalle}"
 
         self.txt_estado_proceso.value = ""
         self._snack(
-            f"Proceso terminado: {len(mapa)} dato{'s' if len(mapa) != 1 else ''} protegido"
-            f"{'s' if len(mapa) != 1 else ''}."
+            f"Proceso terminado: {len(tokens_actuales)} dato{'s' if len(tokens_actuales) != 1 else ''} protegido"
+            f"{'s' if len(tokens_actuales) != 1 else ''}. cloaktext.json actualizado."
         )
 
     async def _ejecutar_desanonimizar(self, texto: str) -> None:
-        bruto = (self.txt_diccionario.value or "").strip()
-        if not bruto:
-            self._snack("Abre o pega la clave JSON creada al proteger el texto.")
-            return
-        if len(bruto.encode("utf-8")) > MAX_DICCIONARIO_BYTES:
-            raise ValueError("La clave supera el límite de 10 MB.")
+        if self.mapa_restauracion_personalizado is not None:
+            mapa = self.mapa_restauracion_personalizado
+        else:
+            mapa = await asyncio.to_thread(load_key)
+            self.motor.validar_mapa(mapa)
 
-        try:
-            mapa = json.loads(bruto)
-        except json.JSONDecodeError as exc:
-            raise ValueError("La clave no contiene un JSON válido.") from exc
+        if not mapa:
+            raise ValueError(
+                "cloaktext.json está vacío. Protege un texto primero o usa otro JSON."
+            )
 
-        self.motor.validar_mapa(mapa)
         self.txt_estado_proceso.value = "Restaurando texto…"
         self.page.update()
         resultado = await asyncio.to_thread(self.motor.desanonimizar, texto, mapa)
 
         self.txt_resultado.value = resultado
-        self.txt_resumen.value = f"Texto restaurado con {len(mapa)} elementos de la clave."
-        self.txt_mapa_resultado.visible = False
+        origen = (
+            self.nombre_clave_personalizada
+            if self.mapa_restauracion_personalizado is not None
+            else "cloaktext.json"
+        )
+        self.txt_resumen.value = f"Texto restaurado usando {origen}."
         self.aviso_mapa.visible = False
-        self.fila_acciones_mapa.visible = False
-        self.btn_copiar_diccionario.visible = False
-        self.btn_guardar_diccionario.visible = False
         self.btn_copiar_resultado.disabled = not bool(resultado)
         self.txt_estado_proceso.value = ""
         self._snack("Texto restaurado.")
@@ -725,7 +751,6 @@ class CloakTextApp:
         if self._busy:
             return
         self.txt_entrada.value = ""
-        self.txt_diccionario.value = ""
         self.txt_contador.value = "0 caracteres"
         self._limpiar_resultado()
         self.page.update()
@@ -733,12 +758,7 @@ class CloakTextApp:
     def _limpiar_resultado(self) -> None:
         self.mapa_actual = {}
         self.txt_resultado.value = ""
-        self.txt_mapa_resultado.value = ""
-        self.txt_mapa_resultado.visible = False
         self.aviso_mapa.visible = False
-        self.fila_acciones_mapa.visible = False
-        self.btn_copiar_diccionario.visible = False
-        self.btn_guardar_diccionario.visible = False
         self.btn_copiar_resultado.disabled = True
         self.txt_resumen.value = "Todavía no se ha procesado ningún texto."
         self.txt_estado_proceso.value = ""
@@ -753,6 +773,8 @@ class CloakTextApp:
         self.dd_idioma.disabled = activo
         self.btn_modelo.disabled = activo
         self.btn_cargar_diccionario.disabled = activo
+        self.btn_usar_predeterminado.disabled = activo
+        self.btn_exportar_diccionario.disabled = activo
         self.page.update()
 
     def _refrescar_estado_modelo(self) -> None:
