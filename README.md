@@ -159,7 +159,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
 
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py version.py
 python -m pip check
 
 python build.py
@@ -185,7 +185,7 @@ Consulta [docs/BUILDING.md](docs/BUILDING.md) para el proceso de publicación.
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py version.py
 python -m pip check
 ```
 
