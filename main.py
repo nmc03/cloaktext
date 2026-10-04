@@ -112,7 +112,6 @@ class CloakTextApp:
             content="Preparar idioma",
             icon=ft.Icons.DOWNLOAD_OUTLINED,
             on_click=self._on_accion_modelo,
-            tooltip="Prepara este idioma para reconocer nombres, lugares y organizaciones.",
         )
 
         self.btn_modo_anon = ft.Button(
@@ -177,13 +176,11 @@ class CloakTextApp:
             content="Limpiar",
             icon=ft.Icons.CLEAR_ALL_OUTLINED,
             on_click=self._on_limpiar_texto,
-            tooltip="Limpia los cuadros de texto sin tocar cloaktext.json.",
         )
         self.btn_limpiar_json = ft.TextButton(
             content="Limpiar JSON",
             icon=ft.Icons.DELETE_FOREVER_OUTLINED,
             on_click=self._on_limpiar_json,
-            tooltip="Vacía la clave predeterminada cloaktext.json.",
             style=ft.ButtonStyle(color=ft.Colors.ERROR),
         )
 
@@ -231,7 +228,6 @@ class CloakTextApp:
             content="Exportar JSON",
             icon=ft.Icons.SAVE_ALT_OUTLINED,
             on_click=self._on_guardar_diccionario,
-            tooltip="Exporta una copia de cloaktext.json a la ubicación que elijas.",
         )
 
         self.cabecera = ft.Container(
