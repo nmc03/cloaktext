@@ -175,3 +175,15 @@ def test_json_personalizado_solo_se_usa_si_se_selecciona(tmp_path, monkeypatch):
     asyncio.run(app._ejecutar_desanonimizar("[PERSONA_1000]"))
     assert app.txt_resultado.value == "Eva"
     assert "otra.json" in app.txt_resumen.value
+
+
+def test_botones_no_muestran_tooltips(tmp_path, monkeypatch):
+    _page, app = _crear_app(tmp_path, monkeypatch)
+
+    botones = [
+        app.btn_modelo,
+        app.btn_limpiar_texto,
+        app.btn_limpiar_json,
+        app.btn_exportar_diccionario,
+    ]
+    assert all(getattr(boton, "tooltip", None) in (None, "") for boton in botones)
