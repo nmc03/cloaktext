@@ -1,4 +1,3 @@
-import gc
 """Motor local de protección reversible de CloakText.
 
 Todo el procesamiento se realiza en el equipo. El motor mantiene como máximo
@@ -9,6 +8,7 @@ cuando ambos detectores se solapan.
 
 from __future__ import annotations
 
+import gc
 from bisect import bisect_left
 import logging
 import re
