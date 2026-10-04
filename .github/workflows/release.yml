@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Verify
+        shell: pwsh
+        run: |
+          python -m pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q main.py motor_local.py language_models.py version.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Windows distribution
+        run: python build.py
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = ".github/release-notes/$tag.md"
+          $package = (Get-ChildItem "dist/CloakText-*-windows-x64.zip" | Select-Object -First 1).FullName
+          if (-not $package) { throw "Windows package was not generated." }
+          $checksum = (Resolve-Path "dist/SHA256SUMS.txt").Path
+
+          $args = @(
+            "release", "create", $tag,
+            $package,
+            $checksum
+          )
+          $args += @(
+            "--verify-tag",
+            "--title", "CloakText $tag"
+          )
+
+          if (Test-Path $notes) {
+            $args += @("--notes-file", $notes)
+          } else {
+            $args += "--generate-notes"
+          }
+
+          & gh @args
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

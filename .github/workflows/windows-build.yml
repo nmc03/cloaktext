@@ -1,0 +1,53 @@
+name: Windows build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Test before packaging
+        run: python -m pytest
+
+      - name: Build Windows distribution
+        run: python build.py
+
+      - name: Inspect executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\CloakText\CloakText.exe")) {
+            throw "CloakText.exe was not generated."
+          }
+          Get-Item "dist\CloakText\CloakText.exe" | Format-List Name,Length,LastWriteTime
+          Get-Content "dist\SHA256SUMS.txt"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloakText-${{ github.sha }}-windows-x64
+          path: |
+            dist/CloakText-*-windows-x64.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

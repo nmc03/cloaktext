@@ -1,0 +1,44 @@
+# Historial de versiones
+
+El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
+
+## [1.0.0] - 2026-10-03
+
+Primera versión preparada para distribución de escritorio.
+
+### Añadido
+
+- Interfaz responsive orientada a usuarios no técnicos.
+- Carga y guardado de claves de restauración en JSON.
+- Copia directa del texto protegido y de la clave de restauración.
+- Resumen de tipos de datos detectados.
+- Preparación guiada de idiomas en el primer uso.
+- Soporte de interfaz para español, inglés, francés, alemán, italiano, portugués y catalán.
+- Detección estructurada de IPv4 y validación MOD-97 de IBAN.
+- Procesamiento por bloques para textos extensos.
+- Pruebas automatizadas del motor.
+- CI para Linux y compilación reproducible para Windows.
+- Paquete Windows portable sin redistribuir modelos lingüísticos de terceros.
+- Descarga opcional de modelos spaCy compactos desde el origen oficial con verificación SHA-256.
+- Icono y metadatos del ejecutable.
+
+### Cambiado
+
+- Migración de Flet 0.24 a Flet 1.0.
+- Actualización a spaCy 3.8.
+- Gestión de solapamientos de entidades con menor consumo de memoria.
+- Los patrones estructurados tienen prioridad sobre detecciones NER solapadas.
+- Manejo de errores y estados de procesamiento más claro.
+- El motor evita colisiones con tokens ya presentes en el texto.
+
+### Seguridad
+
+- Validación estricta del formato del clave de restauración.
+- El modelo no se descarga de memoria mientras está procesando.
+- Avisos explícitos sobre la sensibilidad de la clave de restauración.
+- Sin mensajes de error internos expuestos al usuario final.
+
+## [0.1.0] - 2026-06-08
+
+- Prototipo inicial de CloakText.
+- Anonimización reversible local con Flet y spaCy.
