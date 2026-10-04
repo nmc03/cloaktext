@@ -30,7 +30,7 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
 
       - name: Compile sources
-        run: python -m compileall -q main.py motor_local.py language_models.py version.py
+        run: python -m compileall -q main.py motor_local.py language_models.py key_store.py version.py
 
       - name: Test
         run: python -m pytest
