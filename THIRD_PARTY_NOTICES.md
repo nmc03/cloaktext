@@ -19,13 +19,13 @@ These packages are obtained separately by the user and remain governed by their 
 
 | Package | Language | Package license |
 | --- | --- | --- |
-| `en_core_web_sm` 3.8.0 | English | MIT |
-| `de_core_news_sm` 3.8.0 | German | MIT |
-| `es_core_news_sm` 3.8.0 | Spanish | GNU GPL 3.0 |
-| `ca_core_news_sm` 3.8.0 | Catalan | GNU GPL 3.0 |
-| `fr_core_news_sm` 3.8.0 | French | LGPL-LR |
-| `pt_core_news_sm` 3.8.0 | Portuguese | CC BY-SA 4.0 |
-| `it_core_news_sm` 3.8.0 | Italian | CC BY-NC-SA 3.0 |
+| `en_core_web_lg` 3.8.0 | English | MIT |
+| `de_core_news_lg` 3.8.0 | German | MIT |
+| `es_core_news_lg` 3.8.0 | Spanish | GNU GPL 3.0 |
+| `ca_core_news_lg` 3.8.0 | Catalan | GNU GPL 3.0 |
+| `fr_core_news_lg` 3.8.0 | French | LGPL-LR |
+| `pt_core_news_lg` 3.8.0 | Portuguese | CC BY-SA 4.0 |
+| `it_core_news_lg` 3.8.0 | Italian | CC BY-NC-SA 3.0 |
 
 CloakText displays the applicable package license before download. The MIT License for CloakText does not replace or override those terms.
 

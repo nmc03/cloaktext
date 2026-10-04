@@ -8,6 +8,10 @@ Primera versión preparada para distribución de escritorio.
 
 ### Añadido
 
+- `cloaktext.json` predeterminado y persistente junto a la aplicación; se actualiza automáticamente y no se muestra en pantalla.
+- Exportación de la clave JSON y selección opcional de un JSON personalizado al restaurar.
+- Modelos spaCy grandes (`lg`) para los siete idiomas, descargados bajo demanda y verificados por SHA-256.
+
 - Interfaz responsive orientada a usuarios no técnicos.
 - Carga y guardado de claves de restauración en JSON.
 - Copia directa del texto protegido y de la clave de restauración.
@@ -32,6 +36,8 @@ Primera versión preparada para distribución de escritorio.
 - El motor evita colisiones con tokens ya presentes en el texto.
 
 ### Corregido
+
+- Filtro conservador de falsos positivos NER para saludos conversacionales obvios como `hola`.
 
 - Compatibilidad de inicio con Flet 1.0.3: el selector de idioma usa `on_select`, el evento admitido por `Dropdown`.
 - Prueba de construcción completa de la interfaz para detectar incompatibilidades de API antes de generar el ejecutable.
