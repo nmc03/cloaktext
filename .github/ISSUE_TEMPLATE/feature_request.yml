@@ -1,0 +1,20 @@
+name: Propuesta de mejora
+description: Sugiere una mejora para CloakText.
+title: "[Mejora] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Necesidad
+      description: ¿Qué problema de uso resolvería?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Describe el comportamiento que esperas.
+    validations:
+      required: true

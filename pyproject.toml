@@ -1,0 +1,16 @@
+[project]
+name = "cloaktext"
+version = "1.0.0"
+description = "Protección local y reversible para texto sensible."
+license = "MIT"
+authors = [{name = "Nahúm"}]
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+  "flet==1.0.3",
+  "spacy==3.8.16",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
