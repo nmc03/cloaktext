@@ -6,7 +6,7 @@ The base Windows distribution contains Flet, spaCy and their runtime dependencie
 
 ## Main bundled dependencies
 
-| Component | Version used by v1.0.0 | License |
+| Component | Version used by v1.1.0 | License |
 | --- | --- | --- |
 | Flet | 1.0.3 | Apache License 2.0 |
 | spaCy | 3.8.16 | MIT |

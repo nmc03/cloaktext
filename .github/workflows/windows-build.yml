@@ -49,9 +49,39 @@ jobs:
           if ($version.FileDescription -ne "CloakText") {
             throw "Unexpected FileDescription: $($version.FileDescription)"
           }
-          Get-Content "dist\SHA256SUMS.txt"
+          $packages = @(Get-ChildItem "dist/CloakText-*-windows-x64.zip" -File)
+          if ($packages.Count -ne 1) {
+            throw "Expected exactly one Windows ZIP, found $($packages.Count)."
+          }
+          $checksumFile = "dist/SHA256SUMS.txt"
+          if (-not (Test-Path $checksumFile)) {
+            throw "SHA256SUMS.txt was not generated."
+          }
+          $checksum = [regex]::Match(
+            (Get-Content $checksumFile -Raw).Trim(),
+            '^([0-9a-fA-F]{64})  (CloakText-[^/\\]+-windows-x64\.zip)$'
+          )
+          if (-not $checksum.Success -or $checksum.Groups[2].Value -ne $packages[0].Name) {
+            throw "SHA256SUMS.txt does not reference the generated ZIP."
+          }
+          $actualHash = (Get-FileHash $packages[0].FullName -Algorithm SHA256).Hash
+          if ($actualHash -ne $checksum.Groups[1].Value) {
+            throw "Windows package SHA256 mismatch."
+          }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($packages[0].FullName)
+          try {
+            if (-not @($archive.Entries | Where-Object FullName -eq 'CloakText/CloakText.exe').Count) {
+              throw "Windows ZIP does not contain CloakText.exe."
+            }
+          } finally {
+            $archive.Dispose()
+          }
 
+      # PR checks verify the executable, ZIP and checksum but do not consume
+      # scarce Actions artifact storage. Manual runs still expose a download.
       - name: Upload Windows package
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: CloakText-${{ github.sha }}-windows-x64
