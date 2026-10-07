@@ -4,6 +4,7 @@ import pytest
 
 from motor_local import (
     MotorLocal,
+    _es_falso_positivo_ner,
     _iban_valido,
     _seleccionar_no_solapados,
     _trocear_texto,
@@ -107,6 +108,7 @@ def test_modelos_tienen_hash_y_url_fijados():
     assert len(MODEL_INFO) == 7
     assert all(len(info.sha256) == 64 for info in MODEL_INFO.values())
     assert all(info.url.startswith("https://github.com/explosion/spacy-models/") for info in MODEL_INFO.values())
+    assert all(info.package.endswith("_lg") for info in MODEL_INFO.values())
 
 
 def test_extraer_wheel_rechaza_path_traversal(tmp_path):
@@ -128,3 +130,37 @@ def test_extraer_wheel_valido(tmp_path):
     destino = tmp_path / "out"
     _extraer_wheel_seguro(wheel, destino)
     assert (destino / "modelo" / "modelo-3.8.0" / "meta.json").is_file()
+
+
+@pytest.mark.parametrize(
+    ("idioma", "texto"),
+    [
+        ("es", "hola"),
+        ("es", "Hola!"),
+        ("en", "hello"),
+        ("fr", "bonjour"),
+        ("de", "hallo"),
+        ("it", "ciao"),
+        ("pt", "olá"),
+        ("ca", "hola"),
+    ],
+)
+def test_saludos_obvios_no_se_tratan_como_entidades(idioma, texto):
+    assert _es_falso_positivo_ner(texto, idioma)
+
+
+def test_descargar_modelo_fuerza_recoleccion_de_memoria(monkeypatch):
+    import motor_local
+
+    gestor = motor_local.GestorModeloUnico.__new__(motor_local.GestorModeloUnico)
+    gestor._nlp = object()
+    gestor._idioma = "es"
+
+    llamadas = []
+    monkeypatch.setattr(motor_local.gc, "collect", lambda: llamadas.append(True))
+
+    gestor._descargar_interno()
+
+    assert gestor._nlp is None
+    assert gestor._idioma is None
+    assert llamadas == [True]

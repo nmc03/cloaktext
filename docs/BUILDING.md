@@ -6,7 +6,7 @@
 - Python 3.12 recomendado.
 - Git.
 
-Los modelos spaCy no se incluyen en la distribución base.
+Los modelos spaCy `lg` no se incluyen en la distribución base.
 
 ## Crear el entorno
 
@@ -21,7 +21,7 @@ python -m pip install -r requirements-dev.txt
 
 ```powershell
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
 python -m pip check
 ```
 
@@ -47,7 +47,7 @@ dist/
 ├── CloakText/
 │   ├── CloakText.exe
 │   └── ...
-├── CloakText-1.0.0-windows-x64.zip
+├── CloakText-1.1.0-windows-x64.zip
 └── SHA256SUMS.txt
 ```
 
@@ -55,7 +55,7 @@ dist/
 
 No forman parte del ZIP de CloakText.
 
-En primer uso, la aplicación descarga el paquete elegido desde los releases oficiales de `explosion/spacy-models`, verifica el tamaño y SHA-256 fijados y lo extrae de forma segura dentro del perfil local del usuario.
+En primer uso, la aplicación descarga el paquete elegido desde los releases oficiales de `explosion/spacy-models`, verifica el tamaño y SHA-256 fijados y lo extrae de forma segura en la carpeta `models` situada junto a `CloakText.exe`.
 
 Esto evita redistribuir dentro del binario paquetes con licencias heterogéneas.
 
@@ -78,6 +78,6 @@ Antes del tag:
 5. crea `vX.Y.Z`.
 
 ```powershell
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```

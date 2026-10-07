@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,7 +32,7 @@ jobs:
         run: |
           python -m pytest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m compileall -q main.py motor_local.py language_models.py version.py
+          python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

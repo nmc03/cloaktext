@@ -56,7 +56,7 @@ def build() -> Path:
             "--product-name",
             "CloakText",
             "--file-description",
-            "Protección local y reversible para texto sensible",
+            "CloakText",
             "--product-version",
             __version__,
             "--file-version",

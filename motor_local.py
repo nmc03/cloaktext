@@ -8,6 +8,7 @@ cuando ambos detectores se solapan.
 
 from __future__ import annotations
 
+import gc
 from bisect import bisect_left
 import logging
 import re
@@ -85,6 +86,21 @@ PATRONES_POR_IDIOMA = {
 }
 
 ETIQUETAS_SPACY = {"PER": "PERSONA", "PERSON": "PERSONA", "LOC": "LUGAR", "GPE": "LUGAR", "ORG": "ORG"}
+
+FALSOS_POSITIVOS_NER_POR_IDIOMA = {
+    "es": {"hola", "gracias", "adiós", "buenos días", "buenas tardes", "buenas noches"},
+    "en": {"hello", "hi", "thanks", "thank you", "goodbye"},
+    "fr": {"bonjour", "salut", "merci", "au revoir"},
+    "de": {"hallo", "danke", "tschüss", "guten morgen", "guten tag", "guten abend"},
+    "it": {"ciao", "grazie", "buongiorno", "buonasera"},
+    "pt": {"olá", "oi", "obrigado", "obrigada", "bom dia", "boa tarde", "boa noite"},
+    "ca": {"hola", "gràcies", "adéu", "bon dia", "bona tarda", "bona nit"},
+}
+
+
+def _es_falso_positivo_ner(valor: str, idioma: str) -> bool:
+    normalizado = " ".join(valor.casefold().strip().strip(".,;:!?¡¿").split())
+    return normalizado in FALSOS_POSITIVOS_NER_POR_IDIOMA.get(idioma, set())
 
 
 class ModeloNoDisponibleError(ValueError):
@@ -168,10 +184,14 @@ class GestorModeloUnico:
         logger.info("Modelo listo: %s", nombre)
 
     def _descargar_interno(self) -> None:
-        if self._nlp is not None:
+        anterior = self._nlp
+        if anterior is not None:
             logger.info("Liberando modelo de memoria: %s", MODELOS_SPACY.get(self._idioma))
         self._nlp = None
         self._idioma = None
+        if anterior is not None:
+            del anterior
+            gc.collect()
 
     def _limpiar_loop(self) -> None:
         while True:
@@ -322,6 +342,8 @@ class MotorLocal:
                 for entidad in doc.ents:
                     tipo = ETIQUETAS_SPACY.get(entidad.label_)
                     if tipo and tipo in activos:
+                        if _es_falso_positivo_ner(entidad.text, idioma):
+                            continue
                         candidatos.append(
                             (
                                 offset + entidad.start_char,

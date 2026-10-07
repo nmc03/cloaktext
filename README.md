@@ -23,7 +23,7 @@ El texto se procesa en el propio equipo. No se envía a una API ni a un servidor
 ## Por qué CloakText
 
 - **Privacidad local:** el contenido permanece en tu equipo.
-- **Reversible:** puedes recuperar el texto original con la clave generada.
+- **Reversible:** puedes recuperar el texto original con la clave local `cloaktext.json`.
 - **Fácil de revisar:** muestra qué tipos de datos ha protegido.
 - **Sin cuenta:** no requiere registro ni servicio remoto.
 - **Sin telemetría de contenido:** CloakText no recopila el texto procesado.
@@ -73,17 +73,17 @@ Cada release incluye `SHA256SUMS.txt`.
 ### Verificar el ZIP
 
 ```powershell
-Get-FileHash .\CloakText-1.0.0-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.1.0-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
 Los hashes deben coincidir.
 
-La primera versión no está firmada digitalmente, por lo que Windows SmartScreen puede mostrar una advertencia.
+CloakText 1.1.0 no está firmado digitalmente. Windows puede mostrar “Editor desconocido” o una advertencia de SmartScreen. Verifica el SHA-256 publicado en la release antes de ejecutar el archivo.
 
 ## Primer uso
 
-El paquete base no redistribuye modelos lingüísticos de terceros. Al utilizar un idioma por primera vez, CloakText muestra:
+El paquete base no redistribuye modelos lingüísticos de terceros. CloakText utiliza las variantes **grandes (`lg`)** de spaCy para priorizar precisión. Al utilizar un idioma por primera vez, CloakText muestra:
 
 - el paquete que necesita;
 - su tamaño;
@@ -95,6 +95,39 @@ Después de esa instalación inicial, el análisis de ese idioma vuelve a ser lo
 
 Esto mantiene clara la licencia MIT de CloakText y evita mezclar dentro del ZIP modelos que tienen licencias distintas.
 
+## Dónde se guardan los modelos
+
+Como CloakText es portable, los modelos se conservan junto al ejecutable:
+
+CloakText\models
+
+La carpeta portable queda autocontenida:
+
+```text
+CloakText/
+├── CloakText.exe
+├── cloaktext.json
+└── models/
+```
+
+Si mueves toda la carpeta, se mueven también la clave predeterminada y los modelos ya descargados. La carpeta debe estar en una ubicación donde el usuario tenga permisos de escritura.
+
+Cada idioma queda en su propia carpeta:
+
+- Español: es_core_news_lg
+- Inglés: en_core_web_lg
+- Francés: fr_core_news_lg
+- Alemán: de_core_news_lg
+- Italiano: it_core_news_lg
+- Portugués: pt_core_news_lg
+- Catalán: ca_core_news_lg
+
+El archivo wheel se descarga temporalmente desde los releases oficiales de
+explosion/spacy-models, se verifica por tamaño y SHA-256, se extrae en esa
+carpeta y después se elimina el archivo temporal. Al cambiar de idioma,
+CloakText libera inmediatamente de RAM el modelo anterior antes de usar el
+nuevo.
+
 ## Uso
 
 ### Proteger un texto
@@ -102,20 +135,21 @@ Esto mantiene clara la licencia MIT de CloakText y evita mezclar dentro del ZIP 
 1. Selecciona **Proteger**.
 2. Elige el idioma.
 3. Pega el texto.
-4. Si es la primera vez que usas ese idioma, pulsa **Instalar idioma** y revisa su licencia.
+4. Si es la primera vez que usas ese idioma, pulsa **Preparar idioma** y revisa su licencia.
 5. Pulsa **Proteger datos**.
 6. Revisa el texto protegido antes de compartirlo.
-7. Si necesitas restaurarlo en el futuro, guarda la **clave de restauración**.
+7. CloakText actualiza automáticamente `cloaktext.json` junto al ejecutable.
+8. Si quieres una copia externa, pulsa **Exportar JSON**.
 
 ### Restaurar un texto
 
 1. Selecciona **Restaurar**.
 2. Pega el texto protegido.
-3. Abre o pega su clave JSON.
-4. Pulsa **Restaurar texto**.
+3. Pulsa **Restaurar texto**: por defecto se usa `cloaktext.json`.
+4. Solo si necesitas otra clave, pulsa **Usar otro JSON** y selecciona el archivo.
 
 > [!WARNING]
-> La clave de restauración contiene los datos originales. Protégela como protegerías el documento original.
+> `cloaktext.json` contiene los datos originales y se guarda junto a la aplicación. Protégelo como protegerías el documento original y no lo publiques ni lo sincronices sin cifrado.
 
 ## Ejecutar desde código fuente
 
@@ -144,7 +178,7 @@ python main.py
 La propia aplicación gestiona la instalación opcional de los paquetes de idioma. Para desarrollo también puedes instalar uno manualmente, por ejemplo:
 
 ```bash
-python -m spacy download es_core_news_sm
+python -m spacy download es_core_news_lg
 ```
 
 ## Compilar el EXE final
@@ -158,7 +192,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
 
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
 python -m pip check
 
 python build.py
@@ -172,11 +206,11 @@ dist/
 │   ├── CloakText.exe
 │   ├── LICENSE.txt
 │   └── THIRD_PARTY_NOTICES.md
-├── CloakText-1.0.0-windows-x64.zip
+├── CloakText-1.1.0-windows-x64.zip
 └── SHA256SUMS.txt
 ```
 
-Los modelos de idioma no se incluyen en el ZIP y no es necesario instalarlos para generar el ejecutable.
+Los modelos de idioma `lg` no se incluyen en el ZIP y no es necesario instalarlos para generar el EXE. Se descargan una sola vez bajo demanda y se verifican por SHA-256.
 
 Consulta [docs/BUILDING.md](docs/BUILDING.md) para el proceso de publicación.
 
@@ -184,7 +218,7 @@ Consulta [docs/BUILDING.md](docs/BUILDING.md) para el proceso de publicación.
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
 python -m pip check
 ```
 
@@ -217,7 +251,7 @@ Consulta [CONTRIBUTING.md](CONTRIBUTING.md).
 
 CloakText usa versionado semántico. Consulta [CHANGELOG.md](CHANGELOG.md).
 
-La primera versión pública preparada es **v1.0.0**.
+La versión estable actual es **v1.1.0**.
 
 ## Licencia
 
