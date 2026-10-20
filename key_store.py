@@ -1,13 +1,12 @@
-"""Persistencia local de la clave de restauración de CloakText.
+"""Local persistence of the CloakText restore key.
 
-La clave (`cloaktext.json`) relaciona marcadores con valores originales. Puede
-guardarse en claro (formato histórico, un objeto JSON plano) o cifrada con una
-contraseña (AES-256-GCM, clave derivada con scrypt). Ambos formatos conviven:
-`load_key` detecta cuál es y las claves antiguas siguen funcionando.
+The key file (`cloaktext.json`) maps tokens to original values. It can be
+stored in plain text (the historical format, a flat JSON object) or encrypted
+with a password (AES-256-GCM, key derived with scrypt). Both formats coexist:
+`load_key` detects which one is used, and older keys keep working.
 
-Junto a la clave se guarda un archivo auxiliar `cloaktext.dates.json` con la
-fecha de alta de cada marcador (sin valores sensibles) para poder limpiar
-entradas antiguas.
+Next to the key, an auxiliary file `cloaktext.dates.json` stores the date each
+token was added (no sensitive values), so old entries can be purged.
 """
 
 from __future__ import annotations
@@ -37,11 +36,11 @@ MIN_PASSWORD_LENGTH = 8
 
 
 class KeyEncryptedError(ValueError):
-    """La clave está cifrada y no se ha facilitado contraseña."""
+    """The key is encrypted and no password was provided."""
 
 
 class WrongPasswordError(ValueError):
-    """La contraseña no es correcta o el archivo cifrado está dañado."""
+    """The password is incorrect or the encrypted file is damaged."""
 
 
 def _is_writable(directory: Path) -> bool:
@@ -56,7 +55,7 @@ def _is_writable(directory: Path) -> bool:
 
 
 def fallback_directory() -> Path:
-    """Carpeta de usuario con permisos de escritura para datos de CloakText."""
+    """User folder with write permission for CloakText data."""
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / "CloakText"
@@ -65,10 +64,10 @@ def fallback_directory() -> Path:
 
 
 def application_directory() -> Path:
-    """Carpeta de datos: junto al EXE empaquetado o al código en desarrollo.
+    """Data folder: next to the packaged EXE or the source code in development.
 
-    Si esa carpeta no admite escritura (p. ej. se descomprimió en Program Files)
-    se usa una carpeta del perfil del usuario. CLOAKTEXT_APP_DIR fuerza una ruta.
+    If that folder is not writable (e.g. it was extracted to Program Files),
+    a folder in the user's profile is used. CLOAKTEXT_APP_DIR forces a path.
     """
     override = os.environ.get("CLOAKTEXT_APP_DIR")
     if override:
@@ -83,7 +82,7 @@ def application_directory() -> Path:
 
 
 def using_fallback_directory() -> bool:
-    """True si los datos viven en la carpeta del perfil y no junto a la aplicación."""
+    """True if the data lives in the profile folder instead of next to the application."""
     return not os.environ.get("CLOAKTEXT_APP_DIR") and application_directory() == fallback_directory()
 
 
@@ -95,7 +94,7 @@ def dates_path(key_path: Path | None = None) -> Path:
     return (key_path or default_key_path()).with_name(DATES_FILENAME)
 
 
-# --- cifrado ---------------------------------------------------------------
+# --- encryption ------------------------------------------------------------
 
 
 def _derive(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
@@ -111,7 +110,7 @@ def _derive(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
 
 
 def encrypt_key(data: dict[str, str], password: str) -> dict:
-    """Devuelve el sobre JSON cifrado de `data`."""
+    """Return the encrypted JSON envelope for `data`."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     if len(password) < MIN_PASSWORD_LENGTH:
@@ -137,7 +136,7 @@ def encrypt_key(data: dict[str, str], password: str) -> dict:
 
 
 def _associated_data(header: dict) -> bytes:
-    """Cabecera autenticada: modificarla invalida el descifrado."""
+    """Authenticated header: modifying it invalidates decryption."""
     return json.dumps(
         {k: header[k] for k in ("format", "version", "kdf", "n", "r", "p")},
         sort_keys=True,
@@ -220,9 +219,9 @@ def save_key_atomic(
     path: Path | None = None,
     password: str | None = None,
 ) -> Path:
-    """Guarda JSON UTF-8 de forma atómica para no dejar una clave parcial.
+    """Save UTF-8 JSON atomically so a partial key is never left behind.
 
-    Con `password` el contenido se cifra; sin ella se guarda en claro.
+    With `password` the content is encrypted; without it, it is stored in plain text.
     """
     path = path or default_key_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -261,11 +260,11 @@ def _write_atomic(path: Path, encoded: bytes) -> None:
         tmp_path.unlink(missing_ok=True)
 
 
-# --- fechas de alta y limpieza de entradas antiguas --------------------------
+# --- creation dates and cleanup of old entries -------------------------------
 
 
 def load_dates(path: Path | None = None) -> dict[str, str]:
-    """Fechas ISO (AAAA-MM-DD) por marcador. Tolera archivo ausente o dañado."""
+    """ISO dates (YYYY-MM-DD) per token. Tolerates a missing or damaged file."""
     path = path or dates_path()
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -283,16 +282,16 @@ def save_dates(dates: dict[str, str], path: Path | None = None) -> None:
 
 
 def stamp_tokens(
-    mapa: dict[str, str],
+    mapping: dict[str, str],
     dates: dict[str, str],
     today: date | None = None,
 ) -> dict[str, str]:
-    """Devuelve `dates` sin marcadores huérfanos y con fecha para los nuevos.
+    """Return `dates` without orphaned tokens and with a date for new ones.
 
-    Las entradas heredadas (sin fecha) envejecen desde la primera vez que se ven.
+    Legacy entries (no date) age from the first time they are seen.
     """
-    hoy = (today or date.today()).isoformat()
-    return {token: dates.get(token, hoy) for token in mapa}
+    today_iso = (today or date.today()).isoformat()
+    return {token: dates.get(token, today_iso) for token in mapping}
 
 
 def find_older_than(
@@ -300,29 +299,29 @@ def find_older_than(
     days: int,
     today: date | None = None,
 ) -> set[str]:
-    limite = (today or date.today()) - timedelta(days=max(0, days))
-    antiguos: set[str] = set()
-    for token, valor in dates.items():
+    limit = (today or date.today()) - timedelta(days=max(0, days))
+    old_tokens: set[str] = set()
+    for token, value in dates.items():
         try:
-            if date.fromisoformat(valor) < limite:
-                antiguos.add(token)
+            if date.fromisoformat(value) < limit:
+                old_tokens.add(token)
         except ValueError:
             continue
-    return antiguos
+    return old_tokens
 
 
 def purge(
-    mapa: dict[str, str],
+    mapping: dict[str, str],
     dates: dict[str, str],
     tokens: set[str],
 ) -> tuple[dict[str, str], dict[str, str]]:
     return (
-        {t: v for t, v in mapa.items() if t not in tokens},
+        {t: v for t, v in mapping.items() if t not in tokens},
         {t: d for t, d in dates.items() if t not in tokens},
     )
 
 
-# --- preferencias de la interfaz ---------------------------------------------
+# --- interface preferences ---------------------------------------------------
 
 SETTINGS_FILENAME = "cloaktext.settings.json"
 
@@ -332,7 +331,7 @@ def settings_path() -> Path:
 
 
 def load_settings() -> dict:
-    """Preferencias no sensibles (p. ej. idioma de la interfaz). Nunca lanza."""
+    """Non-sensitive preferences (e.g. interface language). Never raises."""
     try:
         data = json.loads(settings_path().read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):

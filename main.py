@@ -1,4 +1,4 @@
-"""Interfaz de escritorio de CloakText."""
+"""Desktop interface of CloakText."""
 
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ from key_store import (
     stamp_tokens,
     using_fallback_directory,
 )
-from language_models import info_modelo
-from motor_local import IDIOMAS_SOPORTADOS, ModeloNoDisponibleError, MotorLocal
+from language_packs import model_info
+from local_engine import SUPPORTED_LANGUAGES, ModelUnavailableError, LocalEngine
 from version import __version__
 
 logging.basicConfig(
@@ -44,46 +44,46 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-C_MARCA = ft.Colors.BLUE_700
-C_MARCA_OSCURO = ft.Colors.BLUE_900
-C_RESTA = ft.Colors.TEAL_600
-C_RESTA_OSCURO = ft.Colors.TEAL_800
+C_BRAND = ft.Colors.BLUE_700
+C_BRAND_DARK = ft.Colors.BLUE_900
+C_RESTORE = ft.Colors.TEAL_600
+C_RESTORE_DARK = ft.Colors.TEAL_800
 
-G_MARCA = ft.LinearGradient(
+G_BRAND = ft.LinearGradient(
     begin=ft.Alignment.TOP_LEFT,
     end=ft.Alignment.BOTTOM_RIGHT,
-    colors=[C_MARCA_OSCURO, ft.Colors.CYAN_600],
+    colors=[C_BRAND_DARK, ft.Colors.CYAN_600],
 )
-G_RESTA = ft.LinearGradient(
+G_RESTORE = ft.LinearGradient(
     begin=ft.Alignment.TOP_LEFT,
     end=ft.Alignment.BOTTOM_RIGHT,
-    colors=[C_RESTA_OSCURO, ft.Colors.GREEN_600],
+    colors=[C_RESTORE_DARK, ft.Colors.GREEN_600],
 )
 
-TOKEN_TIPO_RE = re.compile(r"\[([A-Z][A-Z0-9_]*)_\d+\]")
-TOKEN_RESALTADO_RE = re.compile(r"(\[[A-Z][A-Z0-9_]*_\d+\])")
-MAX_DICCIONARIO_BYTES = 10 * 1024 * 1024
+TOKEN_TYPE_RE = re.compile(r"\[([A-Z][A-Z0-9_]*)_\d+\]")
+HIGHLIGHT_TOKEN_RE = re.compile(r"(\[[A-Z][A-Z0-9_]*_\d+\])")
+MAX_CUSTOM_KEY_BYTES = 10 * 1024 * 1024
 
 
-def nombre_idioma(codigo: str) -> str:
-    return tr(f"lang.{codigo}")
+def language_name(code: str) -> str:
+    return tr(f"lang.{code}")
 
 
-def spans_resaltados(texto: str) -> list[ft.TextSpan]:
-    """Divide `texto` resaltando los marcadores `[TIPO_1000]`."""
-    estilo = ft.TextStyle(
+def highlighted_spans(text: str) -> list[ft.TextSpan]:
+    """Split `text`, highlighting the `[TYPE_1000]` markers."""
+    highlight_style = ft.TextStyle(
         bgcolor=ft.Colors.PRIMARY_CONTAINER,
         color=ft.Colors.ON_PRIMARY_CONTAINER,
         weight=ft.FontWeight.BOLD,
     )
     spans: list[ft.TextSpan] = []
-    for trozo in TOKEN_RESALTADO_RE.split(texto):
-        if not trozo:
+    for piece in HIGHLIGHT_TOKEN_RE.split(text):
+        if not piece:
             continue
-        if TOKEN_RESALTADO_RE.fullmatch(trozo):
-            spans.append(ft.TextSpan(trozo, style=estilo))
+        if HIGHLIGHT_TOKEN_RE.fullmatch(piece):
+            spans.append(ft.TextSpan(piece, style=highlight_style))
         else:
-            spans.append(ft.TextSpan(trozo))
+            spans.append(ft.TextSpan(piece))
     return spans
 
 
@@ -91,29 +91,29 @@ class CloakTextApp:
     def __init__(self, page: ft.Page):
         self.page = page
         set_language(resolve_language(load_settings().get("ui_language")))
-        self.motor = MotorLocal(ttl_minutos=20)
+        self.engine = LocalEngine(ttl_minutes=20)
         self.clipboard = ft.Clipboard()
-        self.modo = "anon"
-        self.mapa_actual: dict[str, str] = {}
-        self.mapa_restauracion_personalizado: dict[str, str] | None = None
-        self.nombre_clave_personalizada: str | None = None
-        self.ruta_clave_predeterminada = default_key_path()
+        self.mode = "protect"
+        self.current_mapping: dict[str, str] = {}
+        self.custom_restore_mapping: dict[str, str] | None = None
+        self.custom_key_name: str | None = None
+        self.default_key_file = default_key_path()
         self._busy = False
         self._password: str | None = None
-        self._clave_bloqueada = False
+        self._key_locked = False
 
-        self._configurar_pagina()
-        self._construir_ui()
-        self._inicializar_clave_predeterminada()
-        page.run_task(self._actualizar_estado_periodico)
-        if self._clave_bloqueada:
-            self._mostrar_desbloqueo()
+        self._configure_page()
+        self._build_ui()
+        self._init_default_key()
+        page.run_task(self._periodic_status_refresh)
+        if self._key_locked:
+            self._show_unlock()
 
-    def _configurar_pagina(self) -> None:
+    def _configure_page(self) -> None:
         self.page.title = "CloakText"
         self.page.theme_mode = ft.ThemeMode.SYSTEM
         self.page.theme = ft.Theme(
-            color_scheme_seed=C_MARCA,
+            color_scheme_seed=C_BRAND,
             use_material3=True,
         )
         self.page.padding = 0
@@ -130,41 +130,41 @@ class CloakTextApp:
 
     # ------------------------------------------------------------------ UI
 
-    def _construir_ui(self) -> None:
-        self.dd_idioma = ft.Dropdown(
+    def _build_ui(self) -> None:
+        self.dd_language = ft.Dropdown(
             label=tr("lang.label"),
             width=220,
             value=getattr(self, "_idioma_texto", "es"),
-            on_select=self._on_idioma_cambiado,
+            on_select=self._on_language_changed,
             options=[
-                ft.DropdownOption(key=codigo, text=nombre_idioma(codigo))
-                for codigo in sorted(IDIOMAS_SOPORTADOS, key=nombre_idioma)
+                ft.DropdownOption(key=code, text=language_name(code))
+                for code in sorted(SUPPORTED_LANGUAGES, key=language_name)
             ],
         )
 
-        self.txt_estado_modelo = ft.Text(
+        self.txt_model_status = ft.Text(
             tr("model.pending"),
             size=12,
             color=ft.Colors.OUTLINE,
         )
-        self.btn_modelo = ft.OutlinedButton(
+        self.btn_model = ft.OutlinedButton(
             content=tr("btn.prepare_language"),
             icon=ft.Icons.DOWNLOAD_OUTLINED,
-            on_click=self._on_accion_modelo,
+            on_click=self._on_model_action,
         )
 
-        self.btn_modo_anon = ft.Button(
+        self.btn_mode_protect = ft.Button(
             content=tr("mode.protect"),
             icon=ft.Icons.VISIBILITY_OFF_OUTLINED,
-            on_click=lambda _: self._cambiar_modo("anon"),
+            on_click=lambda _: self._switch_mode("protect"),
         )
-        self.btn_modo_resta = ft.OutlinedButton(
+        self.btn_mode_restore = ft.OutlinedButton(
             content=tr("mode.restore"),
             icon=ft.Icons.VISIBILITY_OUTLINED,
-            on_click=lambda _: self._cambiar_modo("resta"),
+            on_click=lambda _: self._switch_mode("restore"),
         )
 
-        self.txt_entrada = ft.TextField(
+        self.txt_input = ft.TextField(
             label=tr("field.input_protect"),
             margin=ft.Margin.symmetric(horizontal=4, vertical=2),
             hint_text=tr("hint.input_protect"),
@@ -172,19 +172,26 @@ class CloakTextApp:
             min_lines=12,
             max_lines=18,
             autofocus=True,
-            on_change=self._on_texto_cambiado,
+            on_change=self._on_text_changed,
+            on_selection_change=self._on_selection_changed,
         )
-        self.txt_contador = ft.Text(
+        self.txt_counter = ft.Text(
             tr("counter.zero"),
             size=11,
             color=ft.Colors.OUTLINE,
         )
-        self.btn_terminos = ft.TextButton(
+        self._selection = ""
+        self.btn_selection = ft.TextButton(
+            content=tr("terms.add_selection"),
+            icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+            on_click=self._on_protect_selection,
+        )
+        self.btn_terms = ft.TextButton(
             content=tr("terms.toggle"),
             icon=ft.Icons.EDIT_NOTE_OUTLINED,
-            on_click=self._on_alternar_terminos,
+            on_click=self._on_toggle_terms,
         )
-        self.txt_terminos = ft.TextField(
+        self.txt_terms = ft.TextField(
             label=tr("terms.label"),
             hint_text=tr("terms.hint"),
             multiline=True,
@@ -193,50 +200,50 @@ class CloakTextApp:
             visible=False,
         )
 
-        self.txt_clave_activa = ft.Text(
+        self.txt_active_key = ft.Text(
             tr("restore.active_default"),
             size=12,
             color=ft.Colors.OUTLINE,
             visible=False,
         )
-        self.btn_cargar_diccionario = ft.OutlinedButton(
+        self.btn_load_key_file = ft.OutlinedButton(
             content=tr("btn.other_json"),
             icon=ft.Icons.FILE_OPEN_OUTLINED,
-            on_click=self._on_cargar_diccionario,
+            on_click=self._on_load_key_file,
             visible=False,
         )
-        self.btn_usar_predeterminado = ft.TextButton(
+        self.btn_use_default = ft.TextButton(
             content=tr("btn.default_json"),
             icon=ft.Icons.RESTART_ALT,
-            on_click=self._on_usar_predeterminado,
+            on_click=self._on_use_default,
             visible=False,
         )
 
-        self.barra_progreso = ft.ProgressBar(visible=False)
-        self.txt_estado_proceso = ft.Text(
+        self.progress_bar = ft.ProgressBar(visible=False)
+        self.txt_process_status = ft.Text(
             "",
             size=12,
             color=ft.Colors.OUTLINE,
         )
 
-        self.btn_ejecutar = ft.Button(
+        self.btn_run = ft.Button(
             content=tr("btn.run_protect"),
             icon=ft.Icons.SHIELD_OUTLINED,
-            on_click=self._on_ejecutar,
+            on_click=self._on_run,
         )
-        self.btn_limpiar_texto = ft.OutlinedButton(
+        self.btn_clear_text = ft.OutlinedButton(
             content=tr("common.clear"),
             icon=ft.Icons.CLEAR_ALL_OUTLINED,
-            on_click=self._on_limpiar_texto,
+            on_click=self._on_clear_text,
         )
-        self.btn_limpiar_json = ft.TextButton(
+        self.btn_clear_json = ft.TextButton(
             content=tr("btn.clear_json"),
             icon=ft.Icons.DELETE_FOREVER_OUTLINED,
-            on_click=self._on_limpiar_json,
+            on_click=self._on_clear_json,
             style=ft.ButtonStyle(color=ft.Colors.ERROR),
         )
 
-        self.txt_resultado = ft.TextField(
+        self.txt_result = ft.TextField(
             label=tr("field.result_protect"),
             margin=ft.Margin.symmetric(horizontal=4, vertical=2),
             hint_text=tr("hint.result_protect"),
@@ -245,36 +252,36 @@ class CloakTextApp:
             max_lines=18,
             read_only=True,
         )
-        self.texto_resaltado = ft.Text("", selectable=True, size=14)
-        self.vista_resaltada = ft.Container(
+        self.highlighted_text = ft.Text("", selectable=True, size=14)
+        self.highlight_view = ft.Container(
             visible=False,
             height=318,
             padding=14,
             margin=ft.Margin.symmetric(horizontal=4, vertical=2),
             border=ft.Border.all(1, ft.Colors.OUTLINE),
             border_radius=4,
-            content=ft.Column(controls=[self.texto_resaltado], scroll=ft.ScrollMode.AUTO),
+            content=ft.Column(controls=[self.highlighted_text], scroll=ft.ScrollMode.AUTO),
         )
-        self.sw_resaltar = ft.Switch(
+        self.sw_highlight = ft.Switch(
             label=tr("highlight.switch"),
             value=True,
-            on_change=self._on_alternar_resaltado,
+            on_change=self._on_toggle_highlight,
             visible=False,
         )
-        self.txt_resumen = ft.Text(
+        self.txt_summary = ft.Text(
             tr("summary.none_yet"),
             size=12,
             color=ft.Colors.OUTLINE,
         )
-        self.btn_copiar_resultado = ft.OutlinedButton(
+        self.btn_copy_result = ft.OutlinedButton(
             content=tr("btn.copy"),
             icon=ft.Icons.CONTENT_COPY,
-            on_click=self._on_copiar_resultado,
+            on_click=self._on_copy_result,
             disabled=True,
         )
 
-        self.txt_aviso_mapa = ft.Text("", size=12, color=ft.Colors.AMBER_900, expand=True)
-        self.aviso_mapa = ft.Container(
+        self.txt_key_notice = ft.Text("", size=12, color=ft.Colors.AMBER_900, expand=True)
+        self.key_notice = ft.Container(
             visible=False,
             padding=12,
             border_radius=12,
@@ -282,17 +289,17 @@ class CloakTextApp:
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.KEY_OUTLINED, color=ft.Colors.AMBER_900, size=20),
-                    self.txt_aviso_mapa,
+                    self.txt_key_notice,
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
-        self.btn_exportar_diccionario = ft.OutlinedButton(
+        self.btn_export_key = ft.OutlinedButton(
             content=tr("btn.export"),
             icon=ft.Icons.SAVE_ALT_OUTLINED,
-            on_click=self._on_guardar_diccionario,
+            on_click=self._on_export_key,
         )
-        self.menu_clave = ft.PopupMenuButton(
+        self.key_menu = ft.PopupMenuButton(
             content=ft.Container(
                 padding=ft.Padding.symmetric(horizontal=12, vertical=9),
                 border_radius=20,
@@ -309,9 +316,9 @@ class CloakTextApp:
             ),
             items=[],
         )
-        self._actualizar_menu_clave()
+        self._update_key_menu()
 
-        selector_idioma_ui = ft.PopupMenuButton(
+        ui_language_selector = ft.PopupMenuButton(
             tooltip=tr("ui.language_tooltip"),
             content=ft.Container(
                 padding=ft.Padding.symmetric(horizontal=12, vertical=7),
@@ -332,16 +339,16 @@ class CloakTextApp:
             ),
             items=[
                 ft.PopupMenuItem(
-                    content=nombre,
-                    data=codigo,
-                    on_click=self._on_cambiar_idioma_ui,
+                    content=name,
+                    data=code,
+                    on_click=self._on_change_ui_language,
                 )
-                for codigo, nombre in UI_LANGUAGES.items()
+                for code, name in UI_LANGUAGES.items()
             ],
         )
 
-        self.cabecera = ft.Container(
-            gradient=G_MARCA,
+        self.header = ft.Container(
+            gradient=G_BRAND,
             padding=ft.Padding.symmetric(horizontal=28, vertical=20),
             content=ft.Row(
                 controls=[
@@ -376,7 +383,7 @@ class CloakTextApp:
                         spacing=2,
                     ),
                     ft.Container(expand=True),
-                    selector_idioma_ui,
+                    ui_language_selector,
                     ft.Container(
                         padding=ft.Padding.symmetric(horizontal=12, vertical=7),
                         border_radius=999,
@@ -400,96 +407,101 @@ class CloakTextApp:
             ),
         )
 
-        selector_modo = ft.Container(
+        mode_selector = ft.Container(
             padding=6,
             border_radius=14,
             bgcolor=ft.Colors.SURFACE_CONTAINER,
             content=ft.Row(
-                controls=[self.btn_modo_anon, self.btn_modo_resta],
+                controls=[self.btn_mode_protect, self.btn_mode_restore],
                 spacing=6,
             ),
         )
 
-        self.estado_modelo = ft.Row(
+        self.model_status = ft.Row(
             controls=[
                 ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.MEMORY_OUTLINED, size=17, color=ft.Colors.OUTLINE),
-                        self.txt_estado_modelo,
+                        self.txt_model_status,
                     ],
                     spacing=7,
                 ),
-                self.btn_modelo,
+                self.btn_model,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        card_entrada = self._card(
+        input_card = self._card(
             tr("card.input_title"),
             tr("card.input_sub"),
             ft.Column(
                 controls=[
                     ft.Row(
-                        controls=[self.dd_idioma, ft.Container(expand=True), selector_modo],
+                        controls=[self.dd_language, ft.Container(expand=True), mode_selector],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    self.txt_entrada,
-                    ft.Row(
-                        controls=[self.btn_terminos, ft.Container(expand=True), self.txt_contador],
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    self.txt_terminos,
+                    self.txt_input,
                     ft.Row(
                         controls=[
-                            self.txt_clave_activa,
+                            self.btn_selection,
+                            self.btn_terms,
                             ft.Container(expand=True),
-                            self.btn_usar_predeterminado,
-                            self.btn_cargar_diccionario,
+                            self.txt_counter,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    self.txt_terms,
+                    ft.Row(
+                        controls=[
+                            self.txt_active_key,
+                            ft.Container(expand=True),
+                            self.btn_use_default,
+                            self.btn_load_key_file,
                         ],
                         alignment=ft.MainAxisAlignment.END,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         visible=True,
                     ),
-                    self.barra_progreso,
+                    self.progress_bar,
                     ft.Row(
                         controls=[
-                            self.txt_estado_proceso,
+                            self.txt_process_status,
                             ft.Container(expand=True),
-                            self.btn_limpiar_texto,
-                            self.btn_limpiar_json,
-                            self.btn_ejecutar,
+                            self.btn_clear_text,
+                            self.btn_clear_json,
+                            self.btn_run,
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Divider(height=1),
-                    self.estado_modelo,
+                    self.model_status,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 spacing=14,
             ),
         )
-        card_entrada.col = {"xs": 12, "lg": 6}
+        input_card.col = {"xs": 12, "lg": 6}
 
-        card_resultado = self._card(
+        result_card = self._card(
             tr("card.result_title"),
             tr("card.result_sub"),
             ft.Column(
                 controls=[
-                    self.sw_resaltar,
-                    self.txt_resultado,
-                    self.vista_resaltada,
+                    self.sw_highlight,
+                    self.txt_result,
+                    self.highlight_view,
                     ft.Row(
                         controls=[
-                            self.txt_resumen,
+                            self.txt_summary,
                             ft.Container(expand=True),
-                            self.btn_copiar_resultado,
+                            self.btn_copy_result,
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    self.aviso_mapa,
+                    self.key_notice,
                     ft.Row(
-                        controls=[self.menu_clave, ft.Container(expand=True), self.btn_exportar_diccionario],
+                        controls=[self.key_menu, ft.Container(expand=True), self.btn_export_key],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                 ],
@@ -497,9 +509,9 @@ class CloakTextApp:
                 spacing=14,
             ),
         )
-        card_resultado.col = {"xs": 12, "lg": 6}
+        result_card.col = {"xs": 12, "lg": 6}
 
-        pie = ft.Row(
+        footer = ft.Row(
             controls=[
                 ft.Text(
                     f"CloakText {__version__}",
@@ -516,7 +528,7 @@ class CloakTextApp:
         )
 
         self.page.add(
-            self.cabecera,
+            self.header,
             ft.Container(
                 expand=True,
                 padding=ft.Padding.symmetric(horizontal=24, vertical=20),
@@ -530,11 +542,11 @@ class CloakTextApp:
                             ),
                         ),
                         ft.ResponsiveRow(
-                            controls=[card_entrada, card_resultado],
+                            controls=[input_card, result_card],
                             spacing=18,
                             run_spacing=18,
                         ),
-                        pie,
+                        footer,
                     ],
                     spacing=16,
                     scroll=ft.ScrollMode.AUTO,
@@ -542,11 +554,11 @@ class CloakTextApp:
             ),
         )
 
-        self._sincronizar_modo_ui()
-        self._refrescar_estado_modelo()
+        self._sync_mode_ui()
+        self._refresh_model_status()
 
     @staticmethod
-    def _card(titulo: str, subtitulo: str, contenido: ft.Control) -> ft.Container:
+    def _card(title: str, subtitle: str, body: ft.Control) -> ft.Container:
         return ft.Container(
             padding=20,
             border_radius=20,
@@ -554,146 +566,170 @@ class CloakTextApp:
             border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
             content=ft.Column(
                 controls=[
-                    ft.Text(titulo, size=17, weight=ft.FontWeight.BOLD),
-                    ft.Text(subtitulo, size=12, color=ft.Colors.OUTLINE),
+                    ft.Text(title, size=17, weight=ft.FontWeight.BOLD),
+                    ft.Text(subtitle, size=12, color=ft.Colors.OUTLINE),
                     ft.Divider(height=1),
-                    contenido,
+                    body,
                 ],
                 spacing=10,
             ),
         )
 
-    def _cambiar_modo(self, modo: str) -> None:
-        if self._busy or modo == self.modo:
+    def _switch_mode(self, mode: str) -> None:
+        if self._busy or mode == self.mode:
             return
-        self.modo = modo
-        self._sincronizar_modo_ui()
+        self.mode = mode
+        self._sync_mode_ui()
         self.page.update()
 
-    def _sincronizar_modo_ui(self) -> None:
-        en_anon = self.modo == "anon"
+    def _sync_mode_ui(self) -> None:
+        is_protect_mode = self.mode == "protect"
 
-        self.btn_modo_anon.style = ft.ButtonStyle(
-            bgcolor=C_MARCA if en_anon else ft.Colors.TRANSPARENT,
-            color=ft.Colors.WHITE if en_anon else ft.Colors.ON_SURFACE,
+        self.btn_mode_protect.style = ft.ButtonStyle(
+            bgcolor=C_BRAND if is_protect_mode else ft.Colors.TRANSPARENT,
+            color=ft.Colors.WHITE if is_protect_mode else ft.Colors.ON_SURFACE,
         )
-        self.btn_modo_resta.style = ft.ButtonStyle(
-            bgcolor=C_RESTA if not en_anon else ft.Colors.TRANSPARENT,
-            color=ft.Colors.WHITE if not en_anon else ft.Colors.ON_SURFACE,
+        self.btn_mode_restore.style = ft.ButtonStyle(
+            bgcolor=C_RESTORE if not is_protect_mode else ft.Colors.TRANSPARENT,
+            color=ft.Colors.WHITE if not is_protect_mode else ft.Colors.ON_SURFACE,
         )
 
-        self.btn_ejecutar.content = tr("btn.run_protect") if en_anon else tr("btn.run_restore")
-        self.btn_ejecutar.icon = (
-            ft.Icons.SHIELD_OUTLINED if en_anon else ft.Icons.VISIBILITY_OUTLINED
+        self.btn_run.content = tr("btn.run_protect") if is_protect_mode else tr("btn.run_restore")
+        self.btn_run.icon = (
+            ft.Icons.SHIELD_OUTLINED if is_protect_mode else ft.Icons.VISIBILITY_OUTLINED
         )
-        self.btn_ejecutar.style = ft.ButtonStyle(
-            bgcolor=C_MARCA if en_anon else C_RESTA,
+        self.btn_run.style = ft.ButtonStyle(
+            bgcolor=C_BRAND if is_protect_mode else C_RESTORE,
             color=ft.Colors.WHITE,
         )
-        self.cabecera.gradient = G_MARCA if en_anon else G_RESTA
-        self.dd_idioma.visible = en_anon
-        self.estado_modelo.visible = en_anon
-        self.btn_terminos.visible = en_anon
-        if not en_anon:
-            self.txt_terminos.visible = False
-        self.txt_entrada.label = tr("field.input_protect") if en_anon else tr("field.input_restore")
-        self.txt_entrada.hint_text = (
-            tr("hint.input_protect") if en_anon else tr("hint.input_restore")
+        self.header.gradient = G_BRAND if is_protect_mode else G_RESTORE
+        self.dd_language.visible = is_protect_mode
+        self.model_status.visible = is_protect_mode
+        self.btn_terms.visible = is_protect_mode
+        self.btn_selection.visible = is_protect_mode
+        if not is_protect_mode:
+            self.txt_terms.visible = False
+        self.txt_input.label = tr("field.input_protect") if is_protect_mode else tr("field.input_restore")
+        self.txt_input.hint_text = (
+            tr("hint.input_protect") if is_protect_mode else tr("hint.input_restore")
         )
-        self.txt_resultado.label = (
-            tr("field.result_protect") if en_anon else tr("field.result_restore")
+        self.txt_result.label = (
+            tr("field.result_protect") if is_protect_mode else tr("field.result_restore")
         )
-        self.txt_resultado.hint_text = (
-            tr("hint.result_protect") if en_anon else tr("hint.result_restore")
+        self.txt_result.hint_text = (
+            tr("hint.result_protect") if is_protect_mode else tr("hint.result_restore")
         )
-        self.txt_clave_activa.visible = not en_anon
-        self.btn_cargar_diccionario.visible = not en_anon
-        self.btn_usar_predeterminado.visible = (
-            not en_anon and self.mapa_restauracion_personalizado is not None
+        self.txt_active_key.visible = not is_protect_mode
+        self.btn_load_key_file.visible = not is_protect_mode
+        self.btn_use_default.visible = (
+            not is_protect_mode and self.custom_restore_mapping is not None
         )
-        self._actualizar_texto_clave_activa()
-        self._limpiar_resultado()
+        self._update_active_key_text()
+        self._clear_result()
 
-    def _on_alternar_terminos(self, _event) -> None:
-        self.txt_terminos.visible = not self.txt_terminos.visible
+    def _on_toggle_terms(self, _event) -> None:
+        self.txt_terms.visible = not self.txt_terms.visible
         self.page.update()
 
-    def _terminos_manuales(self) -> list[str]:
-        return (self.txt_terminos.value or "").splitlines()
+    def _on_selection_changed(self, event) -> None:
+        # The last non-empty selection is kept: when the button is pressed, the field
+        # may lose focus and report an empty selection before the click.
+        text = " ".join((getattr(event, "selected_text", "") or "").split())
+        if text:
+            self._selection = text
 
-    # ------------------------------------------------- idioma de la interfaz
-
-    def _on_cambiar_idioma_ui(self, event) -> None:
-        codigo = event.control.data
-        if codigo == get_language() or self._busy:
+    def _on_protect_selection(self, _event) -> None:
+        selection = self._selection
+        if not selection:
+            self._snack(tr("terms.select_first"))
             return
-        set_language(codigo)
-        ajustes = load_settings()
-        ajustes["ui_language"] = codigo
-        save_settings(ajustes)
+        existing_terms = {" ".join(t.split()).casefold() for t in self._manual_terms()}
+        if selection.casefold() in existing_terms:
+            self._snack(tr("terms.selection_exists", text=selection))
+        else:
+            actual = (self.txt_terms.value or "").rstrip("\n")
+            self.txt_terms.value = f"{actual}\n{selection}" if actual else selection
+            self._snack(tr("terms.selection_added", text=selection))
+        self.txt_terms.visible = True
+        self._selection = ""
+        self.page.update()
 
-        entrada = self.txt_entrada.value or ""
-        terminos = self.txt_terminos.value or ""
-        mostrar_terminos = self.txt_terminos.visible
-        modo = self.modo
-        self._idioma_texto = self.dd_idioma.value or "es"
+    def _manual_terms(self) -> list[str]:
+        return (self.txt_terms.value or "").splitlines()
+
+    # ------------------------------------------------- interface language
+
+    def _on_change_ui_language(self, event) -> None:
+        code = event.control.data
+        if code == get_language() or self._busy:
+            return
+        set_language(code)
+        prefs = load_settings()
+        prefs["ui_language"] = code
+        save_settings(prefs)
+
+        previous_input = self.txt_input.value or ""
+        terms = self.txt_terms.value or ""
+        show_terms = self.txt_terms.visible
+        mode = self.mode
+        self._text_language = self.dd_language.value or "es"
 
         self.page.controls.clear()
-        self.modo = "anon"
-        self._construir_ui()
-        self.txt_entrada.value = entrada
-        self.txt_terminos.value = terminos
-        self.txt_terminos.visible = mostrar_terminos
-        self._actualizar_contador()
-        if modo != "anon":
-            self._cambiar_modo(modo)
+        self.mode = "protect"
+        self._build_ui()
+        self.txt_input.value = previous_input
+        self.txt_terms.value = terms
+        self.txt_terms.visible = show_terms
+        self._update_counter()
+        if mode != "protect":
+            self._switch_mode(mode)
         self.page.update()
 
-    # ----------------------------------------------------------------- clave
+    # ----------------------------------------------------------------- key
 
-    def _cargar_clave(self) -> dict[str, str]:
+    def _load_key(self) -> dict[str, str]:
         return load_key(password=self._password)
 
-    def _guardar_clave(self, mapa: dict[str, str]) -> None:
-        save_key_atomic(mapa, password=self._password)
+    def _save_key(self, mapping: dict[str, str]) -> None:
+        save_key_atomic(mapping, password=self._password)
 
-    def _inicializar_clave_predeterminada(self) -> None:
+    def _init_default_key(self) -> None:
         try:
-            if not self.ruta_clave_predeterminada.exists():
+            if not self.default_key_file.exists():
                 save_key_atomic({})
             elif is_encrypted():
-                self._clave_bloqueada = True
+                self._key_locked = True
             else:
-                mapa = load_key()
-                self.motor.validar_mapa(mapa)
+                mapping = load_key()
+                self.engine.validate_mapping(mapping)
         except (OSError, ValueError):
-            logger.exception("No se pudo inicializar cloaktext.json")
-        self._actualizar_menu_clave()
+            logger.exception("Could not initialize cloaktext.json")
+        self._update_key_menu()
 
-    def _clave_esta_cifrada(self) -> bool:
-        return self._password is not None or self._clave_bloqueada
+    def _key_is_encrypted(self) -> bool:
+        return self._password is not None or self._key_locked
 
-    def _actualizar_texto_aviso_mapa(self) -> None:
-        clave = "notice.key_encrypted" if self._clave_esta_cifrada() else "notice.key_plain"
-        donde = (
-            tr("notice.where_profile", path=str(self.ruta_clave_predeterminada.parent))
+    def _update_key_notice(self) -> None:
+        key_name = "notice.key_encrypted" if self._key_is_encrypted() else "notice.key_plain"
+        where_text = (
+            tr("notice.where_profile", path=str(self.default_key_file.parent))
             if using_fallback_directory()
             else tr("notice.where_app")
         )
-        self.txt_aviso_mapa.value = tr(clave, where=donde)
+        self.txt_key_notice.value = tr(key_name, where=where_text)
 
-    def _actualizar_menu_clave(self) -> None:
-        if self._clave_esta_cifrada():
+    def _update_key_menu(self) -> None:
+        if self._key_is_encrypted():
             items = [
                 ft.PopupMenuItem(
                     content=tr("menu.change_password"),
                     icon=ft.Icons.LOCK_RESET,
-                    on_click=self._on_establecer_contrasena,
+                    on_click=self._on_set_password,
                 ),
                 ft.PopupMenuItem(
                     content=tr("menu.remove_password"),
                     icon=ft.Icons.LOCK_OPEN_OUTLINED,
-                    on_click=self._on_quitar_contrasena,
+                    on_click=self._on_remove_password,
                 ),
             ]
         else:
@@ -701,137 +737,137 @@ class CloakTextApp:
                 ft.PopupMenuItem(
                     content=tr("menu.set_password"),
                     icon=ft.Icons.LOCK_OUTLINE,
-                    on_click=self._on_establecer_contrasena,
+                    on_click=self._on_set_password,
                 )
             ]
         items.append(
             ft.PopupMenuItem(
                 content=tr("menu.purge"),
                 icon=ft.Icons.AUTO_DELETE_OUTLINED,
-                on_click=self._on_limpiar_antiguas,
+                on_click=self._on_clear_old_entries,
             )
         )
-        self.menu_clave.items = items
-        self._actualizar_texto_aviso_mapa()
+        self.key_menu.items = items
+        self._update_key_notice()
 
-    def _dialogo_contrasena(
+    def _password_dialog(
         self,
-        titulo: str,
-        cuerpo: str,
-        etiqueta_boton: str,
-        al_confirmar,
-        repetir: bool = False,
+        title: str,
+        message_body: str,
+        button_label: str,
+        on_confirm,
+        repeat: bool = False,
     ) -> None:
-        """Diálogo modal con contraseña. `al_confirmar(pw)` devuelve un error (str) o None."""
-        campo = ft.TextField(
+        """Modal password dialog. `al_confirmar(pw)` returns an error (str) or None."""
+        field = ft.TextField(
             label=tr("pw.field"),
             password=True,
             can_reveal_password=True,
             autofocus=True,
         )
-        campo2 = (
+        field2 = (
             ft.TextField(label=tr("pw.field_confirm"), password=True, can_reveal_password=True)
-            if repetir
+            if repeat
             else None
         )
 
-        async def confirmar(_event) -> None:
-            password = campo.value or ""
-            if campo2 is not None:
+        async def confirm(_event) -> None:
+            password = field.value or ""
+            if field2 is not None:
                 if len(password) < MIN_PASSWORD_LENGTH:
-                    campo.error = tr("pw.error_short", n=MIN_PASSWORD_LENGTH)
+                    field.error = tr("pw.error_short", n=MIN_PASSWORD_LENGTH)
                     self.page.update()
                     return
-                if password != (campo2.value or ""):
-                    campo2.error = tr("pw.error_mismatch")
+                if password != (field2.value or ""):
+                    field2.error = tr("pw.error_mismatch")
                     self.page.update()
                     return
-            error = await al_confirmar(password)
+            error = await on_confirm(password)
             if error:
-                campo.error = error
+                field.error = error
                 self.page.update()
                 return
             self.page.pop_dialog()
             self.page.update()
 
-        controles: list[ft.Control] = [ft.Text(cuerpo, size=13), campo]
-        if campo2 is not None:
-            controles.append(campo2)
-        campo.on_submit = confirmar
+        widgets: list[ft.Control] = [ft.Text(message_body, size=13), field]
+        if field2 is not None:
+            widgets.append(field2)
+        field.on_submit = confirm
         self.page.show_dialog(
             ft.AlertDialog(
                 modal=True,
-                title=ft.Text(titulo),
-                content=ft.Column(controls=controles, tight=True, spacing=12, width=420),
+                title=ft.Text(title),
+                content=ft.Column(controls=widgets, tight=True, spacing=12, width=420),
                 actions=[
                     ft.TextButton(content=tr("common.cancel"), on_click=lambda _: self.page.pop_dialog()),
-                    ft.Button(content=etiqueta_boton, on_click=confirmar),
+                    ft.Button(content=button_label, on_click=confirm),
                 ],
                 actions_alignment=ft.MainAxisAlignment.END,
             )
         )
 
-    def _mostrar_desbloqueo(self) -> None:
-        async def desbloquear(password: str) -> str | None:
+    def _show_unlock(self) -> None:
+        async def do_unlock(password: str) -> str | None:
             try:
-                mapa = await asyncio.to_thread(load_key, None, password)
-                self.motor.validar_mapa(mapa)
+                mapping = await asyncio.to_thread(load_key, None, password)
+                self.engine.validate_mapping(mapping)
             except WrongPasswordError:
                 return tr("pw.error_wrong")
             except ValueError as exc:
                 return str(exc)
             self._password = password
-            self._clave_bloqueada = False
-            self._actualizar_menu_clave()
+            self._key_locked = False
+            self._update_key_menu()
             self._snack(tr("pw.unlocked"))
             return None
 
-        self._dialogo_contrasena(
+        self._password_dialog(
             tr("pw.unlock_title"),
-            tr("pw.unlock_body", name=self.ruta_clave_predeterminada.name),
+            tr("pw.unlock_body", name=self.default_key_file.name),
             tr("pw.unlock_btn"),
-            desbloquear,
+            do_unlock,
         )
 
-    async def _on_establecer_contrasena(self, _event) -> None:
+    async def _on_set_password(self, _event) -> None:
         if self._busy:
             return
-        if self._clave_bloqueada:
-            self._mostrar_desbloqueo()
+        if self._key_locked:
+            self._show_unlock()
             return
 
-        async def cifrar(password: str) -> str | None:
+        async def do_encrypt(password: str) -> str | None:
             try:
-                mapa = await asyncio.to_thread(self._cargar_clave)
-                await asyncio.to_thread(save_key_atomic, mapa, None, password)
+                mapping = await asyncio.to_thread(self._load_key)
+                await asyncio.to_thread(save_key_atomic, mapping, None, password)
             except (OSError, ValueError) as exc:
                 return str(exc)
             self._password = password
-            self._actualizar_menu_clave()
+            self._update_key_menu()
             self._snack(tr("pw.set_done"))
             return None
 
-        self._dialogo_contrasena(
+        self._password_dialog(
             tr("pw.set_title"),
             tr("pw.set_body"),
             tr("pw.set_btn"),
-            cifrar,
-            repetir=True,
+            do_encrypt,
+            repeat=True,
         )
 
-    def _on_quitar_contrasena(self, _event) -> None:
+    def _on_remove_password(self, _event) -> None:
         if self._busy or self._password is None:
             return
 
-        async def quitar(_e) -> None:
+        async def do_remove_password(_e) -> None:
             try:
-                mapa = await asyncio.to_thread(self._cargar_clave)
-                await asyncio.to_thread(save_key_atomic, mapa)
+                mapping = await asyncio.to_thread(self._load_key)
+                await asyncio.to_thread(save_key_atomic, mapping)
             except (OSError, ValueError) as exc:
                 self._snack(str(exc))
                 return
             self._password = None
-            self._actualizar_menu_clave()
+            self._update_key_menu()
             self.page.pop_dialog()
             self._snack(tr("pw.remove_done"))
 
@@ -846,27 +882,27 @@ class CloakTextApp:
                     ft.Button(
                         content=tr("pw.remove_btn"),
                         style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR, color=ft.Colors.ON_ERROR),
-                        on_click=quitar,
+                        on_click=do_remove_password,
                     ),
                 ],
                 actions_alignment=ft.MainAxisAlignment.END,
             )
         )
 
-    async def _on_limpiar_antiguas(self, _event) -> None:
+    async def _on_clear_old_entries(self, _event) -> None:
         if self._busy:
             return
-        if self._clave_bloqueada:
-            self._mostrar_desbloqueo()
+        if self._key_locked:
+            self._show_unlock()
             return
         try:
-            mapa = await asyncio.to_thread(self._cargar_clave)
+            mapping = await asyncio.to_thread(self._load_key)
         except (OSError, ValueError) as exc:
             self._snack(str(exc))
             return
-        fechas = stamp_tokens(mapa, load_dates())
+        date_map = stamp_tokens(mapping, load_dates())
 
-        campo = ft.TextField(
+        field = ft.TextField(
             label=tr("purge.days"),
             value="30",
             width=140,
@@ -874,49 +910,49 @@ class CloakTextApp:
             input_filter=ft.NumbersOnlyInputFilter(),
             max_length=5,
         )
-        resumen = ft.Text("", size=13)
+        summary_text = ft.Text("", size=13)
 
-        def dias() -> int | None:
+        def days_value() -> int | None:
             try:
-                return int(campo.value or "")
+                return int(field.value or "")
             except ValueError:
                 return None
 
-        def refrescar(_e=None) -> None:
-            n = dias()
+        def refresh(_e=None) -> None:
+            n = days_value()
             if n is None:
-                resumen.value = tr("purge.invalid")
+                summary_text.value = tr("purge.invalid")
             else:
-                resumen.value = tr(
-                    "purge.count", count=len(find_older_than(fechas, n)), total=len(mapa)
+                summary_text.value = tr(
+                    "purge.count", count=len(find_older_than(date_map, n)), total=len(mapping)
                 )
             self.page.update()
 
-        async def eliminar(_e) -> None:
-            n = dias()
+        async def do_remove(_e) -> None:
+            n = days_value()
             if n is None:
-                refrescar()
+                refresh()
                 return
-            antiguos = find_older_than(fechas, n)
-            nuevo_mapa, nuevas_fechas = purge(mapa, fechas, antiguos)
+            old_tokens = find_older_than(date_map, n)
+            new_mapping, new_dates = purge(mapping, date_map, old_tokens)
             try:
-                await asyncio.to_thread(self._guardar_clave, nuevo_mapa)
-                await asyncio.to_thread(save_dates, nuevas_fechas)
+                await asyncio.to_thread(self._save_key, new_mapping)
+                await asyncio.to_thread(save_dates, new_dates)
             except (OSError, ValueError) as exc:
                 self._snack(str(exc))
                 return
-            self.mapa_actual = {}
+            self.current_mapping = {}
             self.page.pop_dialog()
-            self._snack(tr("purge.done", count=len(antiguos)))
+            self._snack(tr("purge.done", count=len(old_tokens)))
 
-        campo.on_change = refrescar
-        resumen.value = tr("purge.count", count=len(find_older_than(fechas, 30)), total=len(mapa))
+        field.on_change = refresh
+        summary_text.value = tr("purge.count", count=len(find_older_than(date_map, 30)), total=len(mapping))
         self.page.show_dialog(
             ft.AlertDialog(
                 modal=True,
                 title=ft.Text(tr("purge.title")),
                 content=ft.Column(
-                    controls=[ft.Text(tr("purge.body"), size=13), campo, resumen],
+                    controls=[ft.Text(tr("purge.body"), size=13), field, summary_text],
                     tight=True,
                     spacing=12,
                     width=420,
@@ -927,73 +963,74 @@ class CloakTextApp:
                         content=tr("purge.btn"),
                         icon=ft.Icons.DELETE_FOREVER_OUTLINED,
                         style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR, color=ft.Colors.ON_ERROR),
-                        on_click=eliminar,
+                        on_click=do_remove,
                     ),
                 ],
                 actions_alignment=ft.MainAxisAlignment.END,
             )
         )
 
-    # ------------------------------------------------------------ restaurar
+    # ------------------------------------------------------------ restore
 
-    def _actualizar_texto_clave_activa(self) -> None:
-        if self.mapa_restauracion_personalizado is not None:
-            self.txt_clave_activa.value = tr(
+    def _update_active_key_text(self) -> None:
+        if self.custom_restore_mapping is not None:
+            self.txt_active_key.value = tr(
                 "restore.active_custom",
-                name=self.nombre_clave_personalizada or tr("restore.custom_fallback_name"),
+                name=self.custom_key_name or tr("restore.custom_fallback_name"),
             )
         else:
-            self.txt_clave_activa.value = tr("restore.active_default")
+            self.txt_active_key.value = tr("restore.active_default")
 
-    def _on_usar_predeterminado(self, _event) -> None:
-        self.mapa_restauracion_personalizado = None
-        self.nombre_clave_personalizada = None
-        self.btn_usar_predeterminado.visible = False
-        self._actualizar_texto_clave_activa()
+    def _on_use_default(self, _event) -> None:
+        self.custom_restore_mapping = None
+        self.custom_key_name = None
+        self.btn_use_default.visible = False
+        self._update_active_key_text()
         self.page.update()
         self._snack(tr("msg.use_default"))
 
-    def _actualizar_contador(self) -> None:
-        texto = self.txt_entrada.value or ""
-        if not texto:
-            self.txt_contador.value = tr("counter.zero")
+    def _update_counter(self) -> None:
+        text = self.txt_input.value or ""
+        if not text:
+            self.txt_counter.value = tr("counter.zero")
             return
-        lineas = texto.count("\n") + 1
-        self.txt_contador.value = tr(
+        line_count = text.count("\n") + 1
+        self.txt_counter.value = tr(
             "counter",
-            chars=f"{len(texto):,}".replace(",", "."),
-            lines=f"{lineas:,}".replace(",", "."),
+            chars=f"{len(text):,}".replace(",", "."),
+            lines=f"{line_count:,}".replace(",", "."),
         )
 
-    def _on_texto_cambiado(self, _event) -> None:
-        self._actualizar_contador()
-        self.txt_contador.update()
+    def _on_text_changed(self, _event) -> None:
+        self._selection = ""
+        self._update_counter()
+        self.txt_counter.update()
 
-    def _on_idioma_cambiado(self, _event) -> None:
-        seleccionado = self.dd_idioma.value or "es"
-        cargado = self.motor.idioma_cargado()
-        if cargado is not None and cargado != seleccionado:
-            self.motor.descargar_modelo()
-        self._refrescar_estado_modelo()
+    def _on_language_changed(self, _event) -> None:
+        selected = self.dd_language.value or "es"
+        loaded = self.engine.loaded_language()
+        if loaded is not None and loaded != selected:
+            self.engine.unload_model()
+        self._refresh_model_status()
         self.page.update()
 
-    async def _on_accion_modelo(self, _event) -> None:
+    async def _on_model_action(self, _event) -> None:
         if self._busy:
             return
-        idioma = self.dd_idioma.value or "es"
-        if not self.motor.modelo_disponible(idioma):
-            self._mostrar_instalacion_idioma(idioma)
+        language = self.dd_language.value or "es"
+        if not self.engine.model_available(language):
+            self._show_language_install(language)
 
-    def _mostrar_instalacion_idioma(self, idioma: str) -> None:
-        info = info_modelo(idioma)
-        nombre = nombre_idioma(idioma)
-        tamano = info.size_bytes / (1024 * 1024)
-        dialogo = ft.AlertDialog(
+    def _show_language_install(self, language: str) -> None:
+        info = model_info(language)
+        name = language_name(language)
+        size_mb = info.size_bytes / (1024 * 1024)
+        dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text(tr("model.dialog_title", name=nombre)),
+            title=ft.Text(tr("model.dialog_title", name=name)),
             content=ft.Column(
                 controls=[
-                    ft.Text(tr("model.dialog_body", size=tamano)),
+                    ft.Text(tr("model.dialog_body", size=size_mb)),
                     ft.Text(
                         tr("model.dialog_note"),
                         size=12,
@@ -1018,267 +1055,267 @@ class CloakTextApp:
                 ft.Button(
                     content=tr("btn.prepare_language"),
                     icon=ft.Icons.DOWNLOAD_OUTLINED,
-                    data=idioma,
-                    on_click=self._on_instalar_idioma,
+                    data=language,
+                    on_click=self._on_install_language,
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.show_dialog(dialogo)
+        self.page.show_dialog(dialog)
 
-    async def _on_instalar_idioma(self, event) -> None:
-        idioma = event.control.data
+    async def _on_install_language(self, event) -> None:
+        language = event.control.data
         self.page.pop_dialog()
-        nombre = nombre_idioma(idioma)
-        self._poner_cargando(True)
-        self.txt_estado_proceso.value = tr("model.downloading", name=nombre)
+        name = language_name(language)
+        self._set_busy_state(True)
+        self.txt_process_status.value = tr("model.downloading", name=name)
         self.page.update()
         try:
-            await asyncio.to_thread(self.motor.instalar_modelo, idioma)
-            self.txt_estado_proceso.value = ""
-            self._snack(tr("model.installed", name=nombre))
+            await asyncio.to_thread(self.engine.install_model, language)
+            self.txt_process_status.value = ""
+            self._snack(tr("model.installed", name=name))
         except Exception:
-            logger.exception("No se pudo instalar el paquete de idioma %s", idioma)
+            logger.exception("Could not install the language pack %s", language)
             self._snack(tr("model.install_failed"))
         finally:
-            self._poner_cargando(False)
-            self._refrescar_estado_modelo()
+            self._set_busy_state(False)
+            self._refresh_model_status()
             self.page.update()
 
-    async def _on_copiar_resultado(self, _event) -> None:
-        if self.txt_resultado.value:
-            await self.clipboard.set(self.txt_resultado.value)
+    async def _on_copy_result(self, _event) -> None:
+        if self.txt_result.value:
+            await self.clipboard.set(self.txt_result.value)
             self._snack(tr("msg.copied"))
 
-    async def _on_guardar_diccionario(self, _event) -> None:
+    async def _on_export_key(self, _event) -> None:
         try:
-            mapa = await asyncio.to_thread(self._cargar_clave)
-            self.motor.validar_mapa(mapa)
+            mapping = await asyncio.to_thread(self._load_key)
+            self.engine.validate_mapping(mapping)
         except KeyEncryptedError:
-            self._mostrar_desbloqueo()
+            self._show_unlock()
             return
         except (OSError, ValueError) as exc:
             self._snack(tr("msg.export_failed", error=exc))
             return
 
-        nombre = f"cloaktext-key-{datetime.now():%Y%m%d-%H%M%S}.json"
-        # Si la clave está cifrada, la copia exportada también lo está.
-        carga = encrypt_key(mapa, self._password) if self._password else mapa
-        contenido = (json.dumps(carga, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-        ruta = await ft.FilePicker().save_file(
+        name = f"cloaktext-key-{datetime.now():%Y%m%d-%H%M%S}.json"
+        # If the key is encrypted, the exported copy is encrypted too.
+        body_payload = encrypt_key(mapping, self._password) if self._password else mapping
+        body = (json.dumps(body_payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        file_path = await ft.FilePicker().save_file(
             dialog_title=tr("picker.export_title"),
-            file_name=nombre,
+            file_name=name,
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["json"],
-            src_bytes=contenido,
+            src_bytes=body,
         )
-        if ruta or self.page.web:
+        if file_path or self.page.web:
             self._snack(tr("msg.export_done"))
 
-    async def _on_cargar_diccionario(self, _event) -> None:
-        archivos = await ft.FilePicker().pick_files(
+    async def _on_load_key_file(self, _event) -> None:
+        picked_files = await ft.FilePicker().pick_files(
             dialog_title=tr("picker.open_title"),
             allow_multiple=False,
             with_data=True,
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["json"],
         )
-        if not archivos:
+        if not picked_files:
             return
-        archivo = archivos[0]
-        datos = archivo.bytes or b""
-        if len(datos) > MAX_DICCIONARIO_BYTES:
+        picked_file = picked_files[0]
+        data = picked_file.bytes or b""
+        if len(data) > MAX_CUSTOM_KEY_BYTES:
             self._snack(tr("msg.key_too_big"))
             return
         try:
-            bruto = datos.decode("utf-8-sig")
-            contenido = json.loads(bruto)
+            raw_text = data.decode("utf-8-sig")
+            body = json.loads(raw_text)
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._snack(tr("msg.custom_invalid"))
             return
 
-        nombre = archivo.name or tr("restore.custom_fallback_name")
-        if is_encrypted_envelope(contenido):
-            self._pedir_contrasena_clave_personalizada(contenido, nombre)
+        name = picked_file.name or tr("restore.custom_fallback_name")
+        if is_encrypted_envelope(body):
+            self._ask_custom_key_password(body, name)
             return
         try:
-            self.motor.validar_mapa(contenido)
+            self.engine.validate_mapping(body)
         except ValueError:
             self._snack(tr("msg.custom_invalid"))
             return
-        self._usar_clave_personalizada(contenido, nombre)
+        self._use_custom_key(body, name)
 
-    def _pedir_contrasena_clave_personalizada(self, envoltorio: dict, nombre: str) -> None:
-        async def descifrar(password: str) -> str | None:
+    def _ask_custom_key_password(self, envelope_data: dict, name: str) -> None:
+        async def do_decrypt(password: str) -> str | None:
             try:
-                mapa = await asyncio.to_thread(decrypt_key, envoltorio, password)
-                self.motor.validar_mapa(mapa)
+                mapping = await asyncio.to_thread(decrypt_key, envelope_data, password)
+                self.engine.validate_mapping(mapping)
             except WrongPasswordError:
                 return tr("pw.error_wrong")
             except ValueError as exc:
                 return str(exc)
-            self._usar_clave_personalizada(mapa, nombre)
+            self._use_custom_key(mapping, name)
             return None
 
-        self._dialogo_contrasena(
+        self._password_dialog(
             tr("pw.unlock_title"),
-            tr("pw.unlock_body", name=nombre),
+            tr("pw.unlock_body", name=name),
             tr("pw.unlock_btn"),
-            descifrar,
+            do_decrypt,
         )
 
-    def _usar_clave_personalizada(self, mapa: dict[str, str], nombre: str) -> None:
-        self.mapa_restauracion_personalizado = mapa
-        self.nombre_clave_personalizada = nombre
-        self._actualizar_texto_clave_activa()
-        self.btn_usar_predeterminado.visible = True
+    def _use_custom_key(self, mapping: dict[str, str], name: str) -> None:
+        self.custom_restore_mapping = mapping
+        self.custom_key_name = name
+        self._update_active_key_text()
+        self.btn_use_default.visible = True
         self.page.update()
-        self._snack(tr("msg.custom_ready", count=len(mapa)))
+        self._snack(tr("msg.custom_ready", count=len(mapping)))
 
-    # ------------------------------------------------------------- procesar
+    # ------------------------------------------------------------- process
 
-    async def _on_ejecutar(self, _event) -> None:
+    async def _on_run(self, _event) -> None:
         if self._busy:
             return
 
-        texto = self.txt_entrada.value or ""
-        if not texto.strip():
+        text = self.txt_input.value or ""
+        if not text.strip():
             self._snack(tr("msg.enter_text"))
             return
 
-        idioma = self.dd_idioma.value or "es"
-        self._poner_cargando(True)
+        language = self.dd_language.value or "es"
+        self._set_busy_state(True)
 
         try:
-            if self.modo == "anon":
-                await self._ejecutar_anonimizar(texto, idioma)
+            if self.mode == "protect":
+                await self._run_protect(text, language)
             else:
-                await self._ejecutar_desanonimizar(texto)
+                await self._run_restore(text)
         except KeyEncryptedError:
-            self._mostrar_desbloqueo()
-        except ModeloNoDisponibleError as exc:
-            logger.info("Paquete de idioma no instalado: %s", exc.modelo)
-            self._mostrar_instalacion_idioma(exc.idioma)
+            self._show_unlock()
+        except ModelUnavailableError as exc:
+            logger.info("Language pack not installed: %s", exc.model)
+            self._show_language_install(exc.language)
         except ValueError as exc:
             self._snack(str(exc))
         except Exception:
-            logger.exception("Error inesperado durante el procesamiento")
+            logger.exception("Unexpected error during processing")
             self._snack(tr("msg.process_failed"))
         finally:
-            self._poner_cargando(False)
-            self._refrescar_estado_modelo()
+            self._set_busy_state(False)
+            self._refresh_model_status()
             self.page.update()
 
-    async def _ejecutar_anonimizar(self, texto: str, idioma: str) -> None:
-        self.txt_estado_proceso.value = tr("status.analysing")
+    async def _run_protect(self, text: str, language: str) -> None:
+        self.txt_process_status.value = tr("status.analysing")
         self.page.update()
 
-        mapa = await asyncio.to_thread(self._cargar_clave)
-        self.motor.validar_mapa(mapa)
+        mapping = await asyncio.to_thread(self._load_key)
+        self.engine.validate_mapping(mapping)
 
-        resultado = await asyncio.to_thread(
-            self.motor.anonimizar,
-            texto,
-            mapa,
+        result = await asyncio.to_thread(
+            self.engine.protect,
+            text,
+            mapping,
             None,
-            idioma,
-            self._terminos_manuales(),
+            language,
+            self._manual_terms(),
         )
-        await asyncio.to_thread(self._guardar_clave, mapa)
-        await asyncio.to_thread(self._registrar_fechas, mapa)
+        await asyncio.to_thread(self._save_key, mapping)
+        await asyncio.to_thread(self._record_dates, mapping)
 
-        self.mapa_actual = mapa
-        self.txt_resultado.value = resultado
-        self._mostrar_resultado(resultado)
-        self.aviso_mapa.visible = True
-        self.btn_copiar_resultado.disabled = not bool(resultado)
+        self.current_mapping = mapping
+        self.txt_result.value = result
+        self._show_result(result)
+        self.key_notice.visible = True
+        self.btn_copy_result.disabled = not bool(result)
 
-        tokens_actuales = list(TOKEN_TIPO_RE.finditer(resultado))
-        conteo = Counter(match.group(1) for match in tokens_actuales)
+        current_tokens = list(TOKEN_TYPE_RE.finditer(result))
+        counts = Counter(match.group(1) for match in current_tokens)
 
-        if not tokens_actuales:
-            self.txt_resumen.value = tr("summary.nothing_found")
+        if not current_tokens:
+            self.txt_summary.value = tr("summary.nothing_found")
         else:
-            detalle = " · ".join(f"{tipo}: {cantidad}" for tipo, cantidad in sorted(conteo.items()))
-            self.txt_resumen.value = tr("summary.found", count=len(tokens_actuales), detail=detalle)
+            detail = " · ".join(f"{kind}: {amount}" for kind, amount in sorted(counts.items()))
+            self.txt_summary.value = tr("summary.found", count=len(current_tokens), detail=detail)
 
-        self.txt_estado_proceso.value = ""
-        uno = len(tokens_actuales) == 1
+        self.txt_process_status.value = ""
+        is_single = len(current_tokens) == 1
         self._snack(
             tr(
                 "msg.done",
-                count=len(tokens_actuales),
-                noun=tr("msg.noun_one" if uno else "msg.noun_many"),
-                verb=tr("msg.verb_one" if uno else "msg.verb_many"),
+                count=len(current_tokens),
+                noun=tr("msg.noun_one" if is_single else "msg.noun_many"),
+                verb=tr("msg.verb_one" if is_single else "msg.verb_many"),
             )
         )
 
     @staticmethod
-    def _registrar_fechas(mapa: dict[str, str]) -> None:
-        """Anota la fecha de alta de los marcadores nuevos (no crítico)."""
+    def _record_dates(mapping: dict[str, str]) -> None:
+        """Record the creation date of new tokens (non-critical)."""
         try:
-            save_dates(stamp_tokens(mapa, load_dates()))
+            save_dates(stamp_tokens(mapping, load_dates()))
         except OSError:
-            logger.warning("No se pudieron guardar las fechas de las entradas")
+            logger.warning("Could not save the entry dates")
 
-    async def _ejecutar_desanonimizar(self, texto: str) -> None:
-        if self.mapa_restauracion_personalizado is not None:
-            mapa = self.mapa_restauracion_personalizado
+    async def _run_restore(self, text: str) -> None:
+        if self.custom_restore_mapping is not None:
+            mapping = self.custom_restore_mapping
         else:
-            mapa = await asyncio.to_thread(self._cargar_clave)
-            self.motor.validar_mapa(mapa)
+            mapping = await asyncio.to_thread(self._load_key)
+            self.engine.validate_mapping(mapping)
 
-        if not mapa:
+        if not mapping:
             raise ValueError(tr("msg.empty_key"))
 
-        self.txt_estado_proceso.value = tr("status.restoring")
+        self.txt_process_status.value = tr("status.restoring")
         self.page.update()
-        resultado = await asyncio.to_thread(self.motor.desanonimizar, texto, mapa)
+        result = await asyncio.to_thread(self.engine.restore, text, mapping)
 
-        self.txt_resultado.value = resultado
-        self._mostrar_resultado(resultado)
-        origen = (
-            self.nombre_clave_personalizada
-            if self.mapa_restauracion_personalizado is not None
+        self.txt_result.value = result
+        self._show_result(result)
+        source_name = (
+            self.custom_key_name
+            if self.custom_restore_mapping is not None
             else "cloaktext.json"
         )
-        self.txt_resumen.value = tr("summary.restored", source=origen)
-        self.aviso_mapa.visible = False
-        self.btn_copiar_resultado.disabled = not bool(resultado)
-        self.txt_estado_proceso.value = ""
+        self.txt_summary.value = tr("summary.restored", source=source_name)
+        self.key_notice.visible = False
+        self.btn_copy_result.disabled = not bool(result)
+        self.txt_process_status.value = ""
         self._snack(tr("msg.restored"))
 
-    # ------------------------------------------------------------ resultado
+    # ------------------------------------------------------------ result
 
-    def _mostrar_resultado(self, resultado: str) -> None:
-        """Muestra el resultado, con los marcadores resaltados si procede."""
-        en_anon = self.modo == "anon"
-        self.texto_resaltado.spans = spans_resaltados(resultado) if en_anon else []
-        self.sw_resaltar.visible = en_anon and bool(resultado)
-        self._aplicar_resaltado()
+    def _show_result(self, result: str) -> None:
+        """Show the result, with the markers highlighted when applicable."""
+        is_protect_mode = self.mode == "protect"
+        self.highlighted_text.spans = highlighted_spans(result) if is_protect_mode else []
+        self.sw_highlight.visible = is_protect_mode and bool(result)
+        self._apply_highlight()
 
-    def _aplicar_resaltado(self) -> None:
-        resaltar = self.sw_resaltar.visible and bool(self.sw_resaltar.value)
-        self.vista_resaltada.visible = resaltar
-        self.txt_resultado.visible = not resaltar
+    def _apply_highlight(self) -> None:
+        highlight = self.sw_highlight.visible and bool(self.sw_highlight.value)
+        self.highlight_view.visible = highlight
+        self.txt_result.visible = not highlight
 
-    def _on_alternar_resaltado(self, _event) -> None:
-        self._aplicar_resaltado()
+    def _on_toggle_highlight(self, _event) -> None:
+        self._apply_highlight()
         self.page.update()
 
-    def _on_limpiar_texto(self, _event) -> None:
+    def _on_clear_text(self, _event) -> None:
         if self._busy:
             return
-        self.txt_entrada.value = ""
-        self.txt_terminos.value = ""
-        self._actualizar_contador()
-        self._limpiar_resultado()
+        self.txt_input.value = ""
+        self.txt_terms.value = ""
+        self._update_counter()
+        self._clear_result()
         self.page.update()
 
-    def _on_limpiar_json(self, _event) -> None:
+    def _on_clear_json(self, _event) -> None:
         if self._busy:
             return
-        dialogo = ft.AlertDialog(
+        dialog = ft.AlertDialog(
             modal=True,
             icon=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.ERROR),
             title=ft.Text(tr("dialog.clear_json_title")),
@@ -1295,89 +1332,90 @@ class CloakTextApp:
                         bgcolor=ft.Colors.ERROR,
                         color=ft.Colors.ON_ERROR,
                     ),
-                    on_click=self._confirmar_limpiar_json,
+                    on_click=self._confirm_clear_json,
                 ),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.show_dialog(dialogo)
+        self.page.show_dialog(dialog)
 
-    def _confirmar_limpiar_json(self, _event) -> None:
+    def _confirm_clear_json(self, _event) -> None:
         try:
-            self._guardar_clave({})
+            self._save_key({})
             save_dates({})
         except OSError:
-            logger.exception("No se pudo limpiar cloaktext.json")
+            logger.exception("Could not clear cloaktext.json")
             self._snack(tr("msg.json_clear_failed"))
             return
-        self.mapa_actual = {}
+        self.current_mapping = {}
         self.page.pop_dialog()
         self._snack(tr("msg.json_cleared"))
 
-    def _limpiar_resultado(self) -> None:
-        self.mapa_actual = {}
-        self.txt_resultado.value = ""
-        self.texto_resaltado.spans = []
-        self.vista_resaltada.visible = False
-        self.txt_resultado.visible = True
-        self.sw_resaltar.visible = False
-        self.aviso_mapa.visible = False
-        self.btn_copiar_resultado.disabled = True
-        self.txt_resumen.value = tr("summary.none_yet")
-        self.txt_estado_proceso.value = ""
+    def _clear_result(self) -> None:
+        self.current_mapping = {}
+        self.txt_result.value = ""
+        self.highlighted_text.spans = []
+        self.highlight_view.visible = False
+        self.txt_result.visible = True
+        self.sw_highlight.visible = False
+        self.key_notice.visible = False
+        self.btn_copy_result.disabled = True
+        self.txt_summary.value = tr("summary.none_yet")
+        self.txt_process_status.value = ""
 
-    def _poner_cargando(self, activo: bool) -> None:
-        self._busy = activo
-        self.barra_progreso.visible = activo
-        self.btn_ejecutar.disabled = activo
-        self.btn_limpiar_texto.disabled = activo
-        self.btn_limpiar_json.disabled = activo
-        self.btn_modo_anon.disabled = activo
-        self.btn_modo_resta.disabled = activo
-        self.dd_idioma.disabled = activo
-        self.btn_modelo.disabled = activo
-        self.btn_cargar_diccionario.disabled = activo
-        self.btn_usar_predeterminado.disabled = activo
-        self.btn_exportar_diccionario.disabled = activo
-        self.btn_terminos.disabled = activo
-        self.menu_clave.disabled = activo
+    def _set_busy_state(self, active: bool) -> None:
+        self._busy = active
+        self.progress_bar.visible = active
+        self.btn_run.disabled = active
+        self.btn_clear_text.disabled = active
+        self.btn_clear_json.disabled = active
+        self.btn_mode_protect.disabled = active
+        self.btn_mode_restore.disabled = active
+        self.dd_language.disabled = active
+        self.btn_model.disabled = active
+        self.btn_load_key_file.disabled = active
+        self.btn_use_default.disabled = active
+        self.btn_export_key.disabled = active
+        self.btn_terms.disabled = active
+        self.btn_selection.disabled = active
+        self.key_menu.disabled = active
         self.page.update()
 
-    def _refrescar_estado_modelo(self) -> None:
-        seleccionado = self.dd_idioma.value or "es"
-        nombre = nombre_idioma(seleccionado)
-        disponible = self.motor.modelo_disponible(seleccionado)
+    def _refresh_model_status(self) -> None:
+        selected = self.dd_language.value or "es"
+        name = language_name(selected)
+        available = self.engine.model_available(selected)
 
-        if disponible:
-            self.txt_estado_modelo.value = tr("model.ready", name=nombre)
-            self.txt_estado_modelo.color = ft.Colors.ON_SURFACE
-            self.btn_modelo.visible = False
+        if available:
+            self.txt_model_status.value = tr("model.ready", name=name)
+            self.txt_model_status.color = ft.Colors.ON_SURFACE
+            self.btn_model.visible = False
         else:
-            self.txt_estado_modelo.value = tr("model.prepare_to_start", name=nombre)
-            self.txt_estado_modelo.color = ft.Colors.OUTLINE
-            self.btn_modelo.visible = True
-            self.btn_modelo.content = tr("btn.prepare_language")
-            self.btn_modelo.icon = ft.Icons.DOWNLOAD_OUTLINED
-            self.btn_modelo.disabled = self._busy
+            self.txt_model_status.value = tr("model.prepare_to_start", name=name)
+            self.txt_model_status.color = ft.Colors.OUTLINE
+            self.btn_model.visible = True
+            self.btn_model.content = tr("btn.prepare_language")
+            self.btn_model.icon = ft.Icons.DOWNLOAD_OUTLINED
+            self.btn_model.disabled = self._busy
 
-    async def _actualizar_estado_periodico(self) -> None:
+    async def _periodic_status_refresh(self) -> None:
         while True:
             await asyncio.sleep(15)
             try:
-                self._refrescar_estado_modelo()
+                self._refresh_model_status()
                 self.page.update()
             except Exception:
                 return
 
     async def _on_window_event(self, event: ft.WindowEvent) -> None:
         if event.type == ft.WindowEventType.CLOSE:
-            self.motor.detener()
+            self.engine.stop()
             await self.page.window.destroy()
 
-    def _snack(self, mensaje: str) -> None:
+    def _snack(self, message: str) -> None:
         self.page.show_dialog(
             ft.SnackBar(
-                content=ft.Text(mensaje),
+                content=ft.Text(message),
                 behavior=ft.SnackBarBehavior.FLOATING,
                 show_close_icon=True,
             )

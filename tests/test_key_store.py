@@ -35,24 +35,24 @@ def test_invalid_key_is_rejected(tmp_path):
 
 
 def test_models_live_next_to_portable_app(tmp_path, monkeypatch):
-    from language_models import directorio_modelos
+    from language_packs import models_directory
 
     monkeypatch.setenv("CLOAKTEXT_APP_DIR", str(tmp_path))
     monkeypatch.delenv("CLOAKTEXT_DATA_DIR", raising=False)
 
-    assert directorio_modelos() == tmp_path.resolve() / "models"
+    assert models_directory() == tmp_path.resolve() / "models"
 
 
 def test_models_data_override_is_only_for_test_and_dev(tmp_path, monkeypatch):
-    from language_models import directorio_modelos
+    from language_packs import models_directory
 
     override = tmp_path / "isolated-data"
     monkeypatch.setenv("CLOAKTEXT_DATA_DIR", str(override))
 
-    assert directorio_modelos() == override.resolve() / "models"
+    assert models_directory() == override.resolve() / "models"
 
 
-# --- cifrado con contraseña ---
+# --- password encryption ---
 
 from datetime import date  # noqa: E402
 
@@ -111,7 +111,7 @@ def test_plain_legacy_key_still_loads_with_or_without_password(tmp_path):
     assert key_store.load_key(path, password="ignored") == {"[EMAIL_1000]": "a@b.co"}
 
 
-# --- carpeta alternativa ---
+# --- fallback folder ---
 
 
 def test_falls_back_to_user_profile_when_app_dir_not_writable(tmp_path, monkeypatch):
@@ -124,28 +124,28 @@ def test_falls_back_to_user_profile_when_app_dir_not_writable(tmp_path, monkeypa
     assert tmp_path in key_store.fallback_directory().parents
 
 
-# --- fechas y limpieza ---
+# --- dates and cleanup ---
 
 
 def test_stamp_new_tokens_and_drop_orphans():
-    mapa = {"[EMAIL_1000]": "a", "[EMAIL_1001]": "b"}
+    mapping = {"[EMAIL_1000]": "a", "[EMAIL_1001]": "b"}
     dates = {"[EMAIL_1000]": "2026-01-01", "[PERSONA_1002]": "2026-01-01"}
 
-    resultado = key_store.stamp_tokens(mapa, dates, today=date(2026, 10, 20))
+    result = key_store.stamp_tokens(mapping, dates, today=date(2026, 10, 20))
 
-    assert resultado == {"[EMAIL_1000]": "2026-01-01", "[EMAIL_1001]": "2026-10-20"}
+    assert result == {"[EMAIL_1000]": "2026-01-01", "[EMAIL_1001]": "2026-10-20"}
 
 
 def test_find_older_than_and_purge():
-    mapa = {"[EMAIL_1000]": "a", "[EMAIL_1001]": "b"}
+    mapping = {"[EMAIL_1000]": "a", "[EMAIL_1001]": "b"}
     dates = {"[EMAIL_1000]": "2026-08-01", "[EMAIL_1001]": "2026-10-19"}
 
-    antiguos = key_store.find_older_than(dates, 30, today=date(2026, 10, 20))
-    nuevo_mapa, nuevas_fechas = key_store.purge(mapa, dates, antiguos)
+    old_tokens = key_store.find_older_than(dates, 30, today=date(2026, 10, 20))
+    new_mapping, new_dates = key_store.purge(mapping, dates, old_tokens)
 
-    assert antiguos == {"[EMAIL_1000]"}
-    assert nuevo_mapa == {"[EMAIL_1001]": "b"}
-    assert nuevas_fechas == {"[EMAIL_1001]": "2026-10-19"}
+    assert old_tokens == {"[EMAIL_1000]"}
+    assert new_mapping == {"[EMAIL_1001]": "b"}
+    assert new_dates == {"[EMAIL_1001]": "2026-10-19"}
 
 
 def test_dates_file_roundtrip_and_tolerates_garbage(tmp_path):

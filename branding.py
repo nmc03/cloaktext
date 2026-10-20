@@ -1,4 +1,4 @@
-"""Recursos visuales embebidos de CloakText."""
+"""Embedded visual assets for CloakText."""
 
 from __future__ import annotations
 

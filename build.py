@@ -1,8 +1,8 @@
-"""Construye la distribución Windows de CloakText.
+"""Build the Windows distribution of CloakText.
 
-Los modelos spaCy no se redistribuyen dentro del ZIP. Cada paquete de idioma
-se instala bajo demanda desde los releases oficiales, se verifica por SHA-256
-y queda almacenado localmente en el perfil del usuario.
+spaCy models are not redistributed inside the ZIP. Each language pack is
+installed on demand from the official releases, verified by SHA-256,
+and stored locally in the user's profile.
 """
 
 from __future__ import annotations
@@ -31,13 +31,13 @@ def run(command: list[str]) -> None:
 def build() -> Path:
     if sys.platform != "win32":
         raise SystemExit(
-            "El ejecutable Windows debe compilarse en Windows. "
-            "Usa el workflow 'Windows build' o ejecuta build.py en Windows."
+            "The Windows executable must be built on Windows. "
+            "Use the 'Windows build' workflow or run build.py on Windows."
         )
 
     flet = shutil.which("flet")
     if not flet:
-        raise SystemExit("No se encuentra el comando flet. Instala requirements-dev.txt primero.")
+        raise SystemExit("The flet command was not found. Install requirements-dev.txt first.")
 
     if APP_DIR.exists():
         shutil.rmtree(APP_DIR)
@@ -73,7 +73,7 @@ def build() -> Path:
     )
 
     if not EXE.is_file():
-        raise SystemExit(f"Build incompleto: no existe {EXE}")
+        raise SystemExit(f"Incomplete build: {EXE} does not exist")
 
     shutil.copy2(ROOT / "LICENSE", APP_DIR / "LICENSE.txt")
     shutil.copy2(ROOT / "THIRD_PARTY_NOTICES.md", APP_DIR / "THIRD_PARTY_NOTICES.md")

@@ -61,7 +61,7 @@ class _NoNerUse:
 
 
 class _NoNerManager:
-    def usar(self, language):
+    def use(self, language):
         return _NoNerUse()
 
 
@@ -97,24 +97,24 @@ async def _capture_retrying(name: str) -> None:
 
 
 async def _shoot(app: app_module.CloakTextApp, page: ft.Page, language: str) -> None:
-    app._cambiar_modo("anon")
-    app._guardar_clave({})  # start numbering from 1000 in every screenshot
-    app.dd_idioma.value = language
-    app.txt_entrada.value = SAMPLES[language]
-    app._on_texto_cambiado(None)
+    app._switch_mode("protect")
+    app._save_key({})  # start numbering from 1000 in every screenshot
+    app.dd_language.value = language
+    app.txt_input.value = SAMPLES[language]
+    app._on_text_changed(None)
     page.update()
-    await app._on_ejecutar(None)
+    await app._on_run(None)
     page.pop_dialog()  # hide the toast so it does not cover the buttons
     page.update()
     await asyncio.sleep(2.5)
     await _capture_retrying(f"protect{SUFFIX[language]}.png")
 
-    protected = app.txt_resultado.value
-    app._cambiar_modo("resta")
-    app.txt_entrada.value = protected
-    app._on_texto_cambiado(None)
+    protected = app.txt_result.value
+    app._switch_mode("restore")
+    app.txt_input.value = protected
+    app._on_text_changed(None)
     page.update()
-    await app._on_ejecutar(None)
+    await app._on_run(None)
     page.pop_dialog()
     page.update()
     await asyncio.sleep(2.5)
@@ -125,14 +125,14 @@ async def _run(page: ft.Page) -> None:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     page.theme_mode = ft.ThemeMode.LIGHT
     app = app_module.CloakTextApp(page)
-    app.motor._gestor = _NoNerManager()  # rule-based detection only
+    app.engine._manager = _NoNerManager()  # rule-based detection only
     page.window.width, page.window.height = 1180, 760
     page.window.always_on_top = True  # keep other windows out of the capture
     page.update()
     await asyncio.sleep(1.5)
 
     for language in ("en", "es"):
-        app._on_cambiar_idioma_ui(SimpleNamespace(control=SimpleNamespace(data=language)))
+        app._on_change_ui_language(SimpleNamespace(control=SimpleNamespace(data=language)))
         await asyncio.sleep(1.0)
         await _shoot(app, page, language)
 

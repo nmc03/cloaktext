@@ -1,4 +1,4 @@
-"""Smoke tests de construcción y comportamiento básico de la interfaz Flet."""
+"""Smoke tests for building and basic behavior of the Flet interface."""
 
 import asyncio
 
@@ -36,160 +36,160 @@ class FakePage:
         return None
 
 
-def _crear_app(tmp_path, monkeypatch):
+def _create_app(tmp_path, monkeypatch):
     monkeypatch.setenv("CLOAKTEXT_APP_DIR", str(tmp_path))
     page = FakePage()
     return page, CloakTextApp(page)
 
 
-def test_interfaz_se_construye_con_flet_fijado(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_interface_builds_with_pinned_flet(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
 
     assert page.title == "CloakText"
     assert page.controls
-    assert app.dd_idioma.value == "es"
-    assert app.dd_idioma.on_select == app._on_idioma_cambiado
-    assert app.btn_ejecutar.content == "Proteger datos"
-    assert app.btn_limpiar_texto.content == "Limpiar"
-    assert app.btn_limpiar_json.content == "Limpiar JSON"
+    assert app.dd_language.value == "es"
+    assert app.dd_language.on_select == app._on_language_changed
+    assert app.btn_run.content == "Proteger datos"
+    assert app.btn_clear_text.content == "Limpiar"
+    assert app.btn_clear_json.content == "Limpiar JSON"
     assert not hasattr(app, "txt_diccionario")
     assert not hasattr(app, "txt_mapa_resultado")
     assert (tmp_path / "cloaktext.json").is_file()
-    assert app.txt_clave_activa.value == "Restauración: cloaktext.json predeterminado"
+    assert app.txt_active_key.value == "Restauración: cloaktext.json predeterminado"
 
-    imagen = app.cabecera.content.controls[0].content
-    assert isinstance(imagen, ft.Image)
-    assert imagen.src == LOGO_BYTES
+    image = app.header.content.controls[0].content
+    assert isinstance(image, ft.Image)
+    assert image.src == LOGO_BYTES
     assert LOGO_BYTES.startswith(b"\x89PNG")
 
 
-def test_limpiar_texto_no_toca_json(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_clear_text_does_not_touch_json(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
     save_key_atomic({"[PERSONA_1000]": "Ana"})
 
-    app.txt_entrada.value = "texto"
-    app.txt_resultado.value = "resultado"
-    app._on_limpiar_texto(None)
+    app.txt_input.value = "texto"
+    app.txt_result.value = "resultado"
+    app._on_clear_text(None)
 
-    assert app.txt_entrada.value == ""
-    assert app.txt_resultado.value == ""
+    assert app.txt_input.value == ""
+    assert app.txt_result.value == ""
     assert load_key() == {"[PERSONA_1000]": "Ana"}
 
 
-def test_limpiar_json_pide_confirmacion_y_vacia_solo_predeterminado(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_clear_json_asks_confirmation_and_empties_only_the_default(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
     save_key_atomic({"[PERSONA_1000]": "Ana"})
 
-    app._on_limpiar_json(None)
+    app._on_clear_json(None)
 
-    dialogo = page.dialogs[-1]
-    assert isinstance(dialogo, ft.AlertDialog)
-    assert "dejarán de poder restaurarse" in dialogo.content.value
-    assert "copias JSON" in dialogo.content.value
+    dialog = page.dialogs[-1]
+    assert isinstance(dialog, ft.AlertDialog)
+    assert "dejarán de poder restaurarse" in dialog.content.value
+    assert "copias JSON" in dialog.content.value
 
-    app._confirmar_limpiar_json(None)
+    app._confirm_clear_json(None)
 
     assert load_key() == {}
     assert page.pop_count == 1
 
 
-def test_cambiar_idioma_libera_modelo_anterior(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_changing_language_unloads_previous_model(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
 
-    class FakeMotor:
+    class FakeEngine:
         def __init__(self):
-            self.descargas = 0
+            self.unloads = 0
 
         @staticmethod
-        def modelo_disponible(_idioma):
+        def model_available(_language):
             return True
 
         @staticmethod
-        def idioma_cargado():
+        def loaded_language():
             return "es"
 
-        def descargar_modelo(self):
-            self.descargas += 1
+        def unload_model(self):
+            self.unloads += 1
             return True
 
-    motor = FakeMotor()
-    app.motor = motor
-    app.dd_idioma.value = "en"
+    engine = FakeEngine()
+    app.engine = engine
+    app.dd_language.value = "en"
 
-    app._on_idioma_cambiado(None)
+    app._on_language_changed(None)
 
-    assert motor.descargas == 1
+    assert engine.unloads == 1
 
 
-def test_clave_predeterminada_se_guarda_y_reutiliza(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_default_key_is_saved_and_reused(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
 
-    class FakeMotor:
+    class FakeEngine:
         @staticmethod
-        def validar_mapa(mapa):
-            assert isinstance(mapa, dict)
-
-        @staticmethod
-        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
-            mapa["[PERSONA_1000]"] = "Ana"
-            return texto.replace("Ana", "[PERSONA_1000]")
+        def validate_mapping(mapping):
+            assert isinstance(mapping, dict)
 
         @staticmethod
-        def desanonimizar(texto, mapa):
-            for token, valor in mapa.items():
-                texto = texto.replace(token, valor)
-            return texto
+        def protect(text, mapping, filters, language, terms=None):
+            mapping["[PERSONA_1000]"] = "Ana"
+            return text.replace("Ana", "[PERSONA_1000]")
 
-    app.motor = FakeMotor()
-    asyncio.run(app._ejecutar_anonimizar("Hola Ana", "es"))
+        @staticmethod
+        def restore(text, mapping):
+            for token, value in mapping.items():
+                text = text.replace(token, value)
+            return text
 
-    assert app.txt_resultado.value == "Hola [PERSONA_1000]"
+    app.engine = FakeEngine()
+    asyncio.run(app._run_protect("Hola Ana", "es"))
+
+    assert app.txt_result.value == "Hola [PERSONA_1000]"
     assert load_key() == {"[PERSONA_1000]": "Ana"}
 
-    asyncio.run(app._ejecutar_desanonimizar("Hola [PERSONA_1000]"))
-    assert app.txt_resultado.value == "Hola Ana"
-    assert "cloaktext.json" in app.txt_resumen.value
+    asyncio.run(app._run_restore("Hola [PERSONA_1000]"))
+    assert app.txt_result.value == "Hola Ana"
+    assert "cloaktext.json" in app.txt_summary.value
 
 
-def test_json_personalizado_solo_se_usa_si_se_selecciona(tmp_path, monkeypatch):
+def test_custom_json_is_only_used_when_selected(tmp_path, monkeypatch):
     monkeypatch.setenv("CLOAKTEXT_APP_DIR", str(tmp_path))
     save_key_atomic({"[PERSONA_1000]": "Ana"})
     page = FakePage()
     app = CloakTextApp(page)
 
-    class FakeMotor:
+    class FakeEngine:
         @staticmethod
-        def validar_mapa(mapa):
-            assert isinstance(mapa, dict)
+        def validate_mapping(mapping):
+            assert isinstance(mapping, dict)
 
         @staticmethod
-        def desanonimizar(texto, mapa):
-            return mapa.get(texto, texto)
+        def restore(text, mapping):
+            return mapping.get(text, text)
 
-    app.motor = FakeMotor()
-    asyncio.run(app._ejecutar_desanonimizar("[PERSONA_1000]"))
-    assert app.txt_resultado.value == "Ana"
+    app.engine = FakeEngine()
+    asyncio.run(app._run_restore("[PERSONA_1000]"))
+    assert app.txt_result.value == "Ana"
 
-    app.mapa_restauracion_personalizado = {"[PERSONA_1000]": "Eva"}
-    app.nombre_clave_personalizada = "otra.json"
-    asyncio.run(app._ejecutar_desanonimizar("[PERSONA_1000]"))
-    assert app.txt_resultado.value == "Eva"
-    assert "otra.json" in app.txt_resumen.value
+    app.custom_restore_mapping = {"[PERSONA_1000]": "Eva"}
+    app.custom_key_name = "otra.json"
+    asyncio.run(app._run_restore("[PERSONA_1000]"))
+    assert app.txt_result.value == "Eva"
+    assert "otra.json" in app.txt_summary.value
 
 
-def test_botones_no_muestran_tooltips(tmp_path, monkeypatch):
-    _page, app = _crear_app(tmp_path, monkeypatch)
+def test_buttons_show_no_tooltips(tmp_path, monkeypatch):
+    _page, app = _create_app(tmp_path, monkeypatch)
 
-    botones = [
-        app.btn_modelo,
-        app.btn_limpiar_texto,
-        app.btn_limpiar_json,
-        app.btn_exportar_diccionario,
+    buttons = [
+        app.btn_model,
+        app.btn_clear_text,
+        app.btn_clear_json,
+        app.btn_export_key,
     ]
-    assert all(getattr(boton, "tooltip", None) in (None, "") for boton in botones)
+    assert all(getattr(button, "tooltip", None) in (None, "") for button in buttons)
 
 
-# --- funciones nuevas: resaltado, palabras manuales, contraseña, idioma ---
+# --- new features: highlighting, manual words, password, language ---
 
 import re  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
@@ -199,149 +199,190 @@ import pytest  # noqa: E402
 
 import i18n  # noqa: E402
 import key_store  # noqa: E402
-from main import spans_resaltados  # noqa: E402
+from main import highlighted_spans  # noqa: E402
 
 
-def test_spans_resaltados_marcan_solo_los_marcadores():
-    spans = spans_resaltados("Hola [PERSONA_1000], mira [EMAIL_1001].")
-    textos = [span.text for span in spans]
+def test_highlighted_spans_mark_only_the_placeholders():
+    spans = highlighted_spans("Hola [PERSONA_1000], mira [EMAIL_1001].")
+    texts = [span.text for span in spans]
 
-    assert "".join(textos) == "Hola [PERSONA_1000], mira [EMAIL_1001]."
-    estilados = [span.text for span in spans if span.style is not None]
-    assert estilados == ["[PERSONA_1000]", "[EMAIL_1001]"]
-
-
-def test_resultado_se_resalta_y_se_puede_alternar(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
-    app._mostrar_resultado("Hola [PERSONA_1000]")
-
-    assert app.sw_resaltar.visible and app.vista_resaltada.visible
-    assert not app.txt_resultado.visible
-
-    app.sw_resaltar.value = False
-    app._on_alternar_resaltado(None)
-
-    assert not app.vista_resaltada.visible and app.txt_resultado.visible
+    assert "".join(texts) == "Hola [PERSONA_1000], mira [EMAIL_1001]."
+    styled = [span.text for span in spans if span.style is not None]
+    assert styled == ["[PERSONA_1000]", "[EMAIL_1001]"]
 
 
-def test_palabras_adicionales_llegan_al_motor(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
-    recibido = {}
+def test_result_is_highlighted_and_can_be_toggled(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
+    app._show_result("Hola [PERSONA_1000]")
 
-    class FakeMotor:
+    assert app.sw_highlight.visible and app.highlight_view.visible
+    assert not app.txt_result.visible
+
+    app.sw_highlight.value = False
+    app._on_toggle_highlight(None)
+
+    assert not app.highlight_view.visible and app.txt_result.visible
+
+
+def test_extra_words_reach_the_engine(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
+    received = {}
+
+    class FakeEngine:
         @staticmethod
-        def validar_mapa(mapa):
+        def validate_mapping(mapping):
             pass
 
         @staticmethod
-        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
-            recibido["terminos"] = terminos
-            return texto
+        def protect(text, mapping, filters, language, terms=None):
+            received["terminos"] = terms
+            return text
 
-    app.motor = FakeMotor()
-    app.txt_terminos.value = "Proyecto Atlas\nAna María"
-    asyncio.run(app._ejecutar_anonimizar("texto", "es"))
+    app.engine = FakeEngine()
+    app.txt_terms.value = "Proyecto Atlas\nAna María"
+    asyncio.run(app._run_protect("texto", "es"))
 
-    assert recibido["terminos"] == ["Proyecto Atlas", "Ana María"]
+    assert received["terminos"] == ["Proyecto Atlas", "Ana María"]
 
 
-def test_clave_cifrada_pide_contrasena_al_abrir(tmp_path, monkeypatch):
+def test_encrypted_key_asks_for_password_on_open(tmp_path, monkeypatch):
     monkeypatch.setenv("CLOAKTEXT_APP_DIR", str(tmp_path))
     save_key_atomic({"[PERSONA_1000]": "Ana"}, password="correct horse")
 
     page = FakePage()
     app = CloakTextApp(page)
 
-    assert app._clave_bloqueada
+    assert app._key_locked
     assert isinstance(page.dialogs[-1], ft.AlertDialog)
     with pytest.raises(key_store.KeyEncryptedError):
-        asyncio.run(app._ejecutar_anonimizar("Hola Ana", "es"))
-    # el archivo no se ha tocado
+        asyncio.run(app._run_protect("Hola Ana", "es"))
+    # the file was not modified
     assert key_store.is_encrypted()
 
 
-def test_con_contrasena_la_clave_se_guarda_cifrada(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_with_password_the_key_is_saved_encrypted(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
     save_key_atomic({}, password="correct horse")
     app._password = "correct horse"
 
-    class FakeMotor:
+    class FakeEngine:
         @staticmethod
-        def validar_mapa(mapa):
+        def validate_mapping(mapping):
             pass
 
         @staticmethod
-        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
-            mapa["[PERSONA_1000]"] = "Ana"
-            return texto.replace("Ana", "[PERSONA_1000]")
+        def protect(text, mapping, filters, language, terms=None):
+            mapping["[PERSONA_1000]"] = "Ana"
+            return text.replace("Ana", "[PERSONA_1000]")
 
-    app.motor = FakeMotor()
-    asyncio.run(app._ejecutar_anonimizar("Hola Ana", "es"))
+    app.engine = FakeEngine()
+    asyncio.run(app._run_protect("Hola Ana", "es"))
 
     assert "Ana" not in (tmp_path / "cloaktext.json").read_text(encoding="utf-8")
     assert load_key(password="correct horse") == {"[PERSONA_1000]": "Ana"}
 
 
-def test_fechas_de_alta_se_registran_al_proteger(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
+def test_creation_dates_are_recorded_when_protecting(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
 
-    class FakeMotor:
+    class FakeEngine:
         @staticmethod
-        def validar_mapa(mapa):
+        def validate_mapping(mapping):
             pass
 
         @staticmethod
-        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
-            mapa["[EMAIL_1000]"] = "a@b.co"
+        def protect(text, mapping, filters, language, terms=None):
+            mapping["[EMAIL_1000]"] = "a@b.co"
             return "[EMAIL_1000]"
 
-    app.motor = FakeMotor()
-    asyncio.run(app._ejecutar_anonimizar("a@b.co", "es"))
+    app.engine = FakeEngine()
+    asyncio.run(app._run_protect("a@b.co", "es"))
 
     assert list(key_store.load_dates()) == ["[EMAIL_1000]"]
 
 
-def test_cambiar_idioma_de_la_interfaz_reconstruye_y_conserva_el_texto(tmp_path, monkeypatch):
-    page, app = _crear_app(tmp_path, monkeypatch)
-    app.txt_entrada.value = "mi texto"
+def test_changing_ui_language_rebuilds_and_keeps_the_text(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
+    app.txt_input.value = "mi texto"
 
-    app._on_cambiar_idioma_ui(SimpleNamespace(control=SimpleNamespace(data="en")))
+    app._on_change_ui_language(SimpleNamespace(control=SimpleNamespace(data="en")))
 
-    assert app.btn_ejecutar.content == "Protect data"
-    assert app.txt_entrada.value == "mi texto"
+    assert app.btn_run.content == "Protect data"
+    assert app.txt_input.value == "mi texto"
     assert key_store.load_settings()["ui_language"] == "en"
     assert i18n.get_language() == "en"
 
 
-_USOS_TR = re.compile(r"""\btr\(\s*["']([a-z_]+\.[a-z_0-9]+)["']""")
-_USOS_TR_COND = re.compile(r"""["'](msg\.(?:noun|verb)_(?:one|many))["']""")
+_TR_USES = re.compile(r"""\btr\(\s*["']([a-z_]+\.[a-z_0-9]+)["']""")
+_TR_COND_USES = re.compile(r"""["'](msg\.(?:noun|verb)_(?:one|many))["']""")
 
 
-def _claves_usadas() -> set[str]:
-    raiz = Path(__file__).resolve().parent.parent
-    claves: set[str] = set()
-    for archivo in ("main.py", "key_store.py", "motor_local.py"):
-        codigo = (raiz / archivo).read_text(encoding="utf-8")
-        claves |= set(_USOS_TR.findall(codigo)) | set(_USOS_TR_COND.findall(codigo))
-    return claves
+def _used_keys() -> set[str]:
+    root_dir = Path(__file__).resolve().parent.parent
+    keys_used: set[str] = set()
+    for picked_file in ("main.py", "key_store.py", "local_engine.py"):
+        code = (root_dir / picked_file).read_text(encoding="utf-8")
+        keys_used |= set(_TR_USES.findall(code)) | set(_TR_COND_USES.findall(code))
+    return keys_used
 
 
-def test_todas_las_cadenas_existen_en_ambos_idiomas():
-    es, en = i18n.STRINGS["es"], i18n.STRINGS["en"]
-    assert set(es) == set(en)
-    faltan = {c for c in _claves_usadas() if c not in es}
-    assert not faltan, f"claves sin traducción: {sorted(faltan)}"
-    # `lang.<código>` se construye dinámicamente
-    assert all(f"lang.{c}" in es for c in ("es", "en", "fr", "de", "it", "pt", "ca"))
+ALL_LANGUAGES = ("es", "en", "fr", "de", "it", "pt", "ca")
 
 
-def test_las_traducciones_comparten_marcadores_de_formato():
-    campo = re.compile(r"\{(\w+)[^}]*\}")
-    for clave, texto_es in i18n.STRINGS["es"].items():
-        assert set(campo.findall(texto_es)) == set(campo.findall(i18n.STRINGS["en"][clave])), clave
+def test_all_strings_exist_in_every_language():
+    reference = set(i18n.STRINGS["en"])
+    for code in ALL_LANGUAGES:
+        assert set(i18n.STRINGS[code]) == reference, code
+    missing = {key for key in _used_keys() if key not in reference}
+    assert not missing, f"keys used in code but not translated: {sorted(missing)}"
+    # `lang.<code>` keys are built dynamically
+    assert all(f"lang.{code}" in reference for code in ALL_LANGUAGES)
+    assert set(i18n.UI_LANGUAGES) == set(ALL_LANGUAGES)
 
 
-def test_idioma_desconocido_cae_en_ingles_y_clave_ausente_se_devuelve():
+def test_translations_share_format_placeholders():
+    field = re.compile(r"\{(\w+)[^}]*\}")
+    for code in ALL_LANGUAGES:
+        for key_name, translated in i18n.STRINGS[code].items():
+            expected = sorted(field.findall(i18n.STRINGS["en"][key_name]))
+            assert sorted(field.findall(translated)) == expected, (code, key_name)
+
+
+def test_non_english_languages_are_actually_translated():
+    english = i18n.STRINGS["en"]
+    for code in ALL_LANGUAGES:
+        if code == "en":
+            continue
+        same = [k for k, v in i18n.STRINGS[code].items() if v == english[k]]
+        assert len(same) <= 6, (code, same)  # only names such as "JSON" may match
+
+
+def test_unknown_language_falls_back_to_english_and_missing_key_is_returned():
     i18n.set_language("xx")
     assert i18n.get_language() == "en"
-    assert i18n.tr("clave.inexistente") == "clave.inexistente"
+    assert i18n.tr("missing.key") == "missing.key"
+
+
+def test_marking_text_adds_the_selection_to_extra_words(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
+
+    app._on_selection_changed(SimpleNamespace(selected_text="  Proyecto   Atlas "))
+    app._on_selection_changed(SimpleNamespace(selected_text=""))  # focus is lost when the button is pressed
+    app._on_protect_selection(None)
+
+    assert app.txt_terms.value == "Proyecto Atlas"
+    assert app.txt_terms.visible
+    app._on_selection_changed(SimpleNamespace(selected_text="proyecto atlas"))
+    app._on_protect_selection(None)  # duplicate: not added again
+    assert app.txt_terms.value == "Proyecto Atlas"
+    app._on_selection_changed(SimpleNamespace(selected_text="Ana María"))
+    app._on_protect_selection(None)
+    assert app._manual_terms() == ["Proyecto Atlas", "Ana María"]
+
+
+def test_marking_text_without_selection_warns(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
+    app._on_protect_selection(None)
+
+    assert app.txt_terms.value in ("", None)
+    assert page.dialogs  # snackbar with the notice
