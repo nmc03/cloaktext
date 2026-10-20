@@ -386,3 +386,22 @@ def test_marking_text_without_selection_warns(tmp_path, monkeypatch):
 
     assert app.txt_terms.value in ("", None)
     assert page.dialogs  # snackbar with the notice
+
+
+def test_summary_uses_singular_and_plural_forms(tmp_path, monkeypatch):
+    page, app = _create_app(tmp_path, monkeypatch)
+
+    class FakeEngine:
+        @staticmethod
+        def validate_mapping(mapping):
+            pass
+
+        @staticmethod
+        def protect(text, mapping, filters, language, terms=None):
+            mapping["[EMAIL_1000]"] = "a@b.co"
+            return "x [EMAIL_1000]"
+
+    app.engine = FakeEngine()
+    asyncio.run(app._run_protect("a@b.co", "es"))
+
+    assert app.txt_summary.value.startswith("1 dato protegido")

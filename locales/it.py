@@ -43,7 +43,7 @@ STRINGS = {
     "counter.zero": "0 caratteri",
     "summary.none_yet": "Non è ancora stato elaborato alcun testo.",
     "summary.nothing_found": "Non sono stati rilevati automaticamente dati sensibili. Controlla il testo prima di condividerlo.",
-    "summary.found": "{count} elementi protetti · {detail}",
+    "summary.found": "{count} {noun} {verb} · {detail}",
     "summary.restored": "Testo ripristinato usando {source}.",
     "status.analysing": "Analisi del testo…",
     "status.restoring": "Ripristino del testo…",

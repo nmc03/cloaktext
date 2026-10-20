@@ -1243,23 +1243,20 @@ class CloakTextApp:
 
         current_tokens = list(TOKEN_TYPE_RE.finditer(result))
         counts = Counter(match.group(1) for match in current_tokens)
+        is_single = len(current_tokens) == 1
+        noun = tr("msg.noun_one" if is_single else "msg.noun_many")
+        verb = tr("msg.verb_one" if is_single else "msg.verb_many")
 
         if not current_tokens:
             self.txt_summary.value = tr("summary.nothing_found")
         else:
             detail = " · ".join(f"{kind}: {amount}" for kind, amount in sorted(counts.items()))
-            self.txt_summary.value = tr("summary.found", count=len(current_tokens), detail=detail)
+            self.txt_summary.value = tr(
+                "summary.found", count=len(current_tokens), noun=noun, verb=verb, detail=detail
+            )
 
         self.txt_process_status.value = ""
-        is_single = len(current_tokens) == 1
-        self._snack(
-            tr(
-                "msg.done",
-                count=len(current_tokens),
-                noun=tr("msg.noun_one" if is_single else "msg.noun_many"),
-                verb=tr("msg.verb_one" if is_single else "msg.verb_many"),
-            )
-        )
+        self._snack(tr("msg.done", count=len(current_tokens), noun=noun, verb=verb))
 
     @staticmethod
     def _record_dates(mapping: dict[str, str]) -> None:
