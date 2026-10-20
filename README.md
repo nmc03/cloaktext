@@ -1,264 +1,144 @@
 <p align="center">
-  <img src="assets/cloaktext.png" alt="CloakText logo" width="128">
+  <img src="assets/cloaktext.png" alt="CloakText logo" width="120">
 </p>
 
 <h1 align="center">CloakText</h1>
 
 <p align="center">
-  Protección local y reversible para texto sensible.
+  Local, reversible protection for sensitive text. Offline and open source.<br>
+  <a href="README.es.md">Leer en español</a>
 </p>
 
 <p align="center">
+  <a href="https://github.com/nmc03/cloaktext/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nmc03/cloaktext/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/nmc03/cloaktext/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/nmc03/cloaktext"></a>
   <img alt="Python 3.11–3.14" src="https://img.shields.io/badge/Python-3.11%E2%80%933.14-3776AB?logo=python&logoColor=white">
-  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows11&logoColor=white">
-  <img alt="CI" src="https://github.com/nmc03/cloaktext/actions/workflows/ci.yml/badge.svg">
-  <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-green.svg">
-  <img alt="Privacy" src="https://img.shields.io/badge/text%20processing-local-2E7D32">
+  <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows11&logoColor=white">
+  <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
 </p>
 
-CloakText protege datos sensibles dentro de un texto sustituyéndolos por identificadores reversibles como `[PERSONA_1000]` o `[EMAIL_1001]`. La clave de restauración permite recuperar exactamente los valores originales cuando sea necesario.
+<p align="center">
+  <img src="docs/images/protect.png" alt="CloakText replacing an IBAN, an email, a phone number and an ID number with reversible placeholders" width="820">
+</p>
 
-El texto se procesa en el propio equipo. No se envía a una API ni a un servidor para protegerlo o restaurarlo.
+CloakText replaces sensitive data in a text with reversible placeholders such as `[EMAIL_1001]` or `[PERSONA_1000]`, so you can paste the text into a chat, a ticket or an AI assistant without exposing the originals. When you need the real values back, restore them with your local key.
 
-## Por qué CloakText
-
-- **Privacidad local:** el contenido permanece en tu equipo.
-- **Reversible:** puedes recuperar el texto original con la clave local `cloaktext.json`.
-- **Fácil de revisar:** muestra qué tipos de datos ha protegido.
-- **Sin cuenta:** no requiere registro ni servicio remoto.
-- **Sin telemetría de contenido:** CloakText no recopila el texto procesado.
-- **Open source:** el código propio se publica bajo MIT.
+Everything runs on your computer. The text is never sent to an API or a server.
 
 > [!IMPORTANT]
-> La detección automática puede omitir información sensible. Revisa siempre el resultado antes de compartirlo.
+> Automatic detection can miss sensitive data. **Always review the result before sharing it.** CloakText reduces accidental exposure; it is not an anonymisation guarantee.
 
-## Qué protege
+## Features
 
-CloakText combina reglas para datos estructurados con reconocimiento de entidades mediante spaCy. Puede detectar, según el idioma:
+- **Reversible protection**: placeholders you can restore with a local key.
+- **Review before sharing**: protected items are highlighted in the result.
+- **Extra words**: add project names, clients or nicknames that must always be protected.
+- **Encrypted key (optional)**: protect `cloaktext.json` with a password (AES-256-GCM).
+- **Key hygiene**: clear entries older than N days from the *Key* menu.
+- **Bilingual interface** (English / Spanish), following your Windows language, switchable from the header.
+- **Works offline** and writes its data next to the app (or to your user profile if that folder is read-only).
 
-- personas;
-- lugares;
-- organizaciones;
-- direcciones de correo;
-- IBAN;
-- IPv4;
-- teléfonos;
-- documentos de identidad;
-- pasaportes;
-- determinadas fechas.
+## How it works
 
-Idiomas disponibles: español, inglés, francés, alemán, italiano, portugués y catalán.
+1. **Protect.** Paste a text, pick its language and press *Protect data*. Emails, IBANs, phone numbers, ID numbers, names, places and organisations are replaced by placeholders.
+2. **Share.** Copy the protected text wherever you need it.
+3. **Restore.** Paste the protected (or processed) text back and press *Restore text*. The placeholders become the original values again.
 
-## Descargar para Windows
+The mapping between placeholders and originals is saved in `cloaktext.json`, next to the application (or in `%LOCALAPPDATA%\CloakText` if the application folder is not writable). The same value always gets the same placeholder, so the protected text keeps its meaning.
 
-Las versiones estables se publican en [GitHub Releases](https://github.com/nmc03/cloaktext/releases).
+> Placeholder type names (`PERSONA`, `TELEFONO`, `NIF`…) stay in Spanish in every interface language so that keys created by any version remain compatible.
 
-Descarga:
+<p align="center">
+  <img src="docs/images/restore.png" alt="Restoring the original text from the protected text" width="820">
+</p>
 
-```text
-CloakText-<versión>-windows-x64.zip
-```
+## What it detects
 
-Descomprímelo completo y ejecuta:
+CloakText combines rule-based detectors for structured data with named-entity recognition from [spaCy](https://spacy.io/).
 
-```text
-CloakText/
-└── CloakText.exe
-```
+| Kind | Examples | Detector |
+| --- | --- | --- |
+| Email, IPv4, IBAN | `ana@example.com`, `192.168.10.4`, `ES91 2100 …` | rules (IBAN checked with MOD-97 and per-country length) |
+| Phone numbers | `+34 612 345 678`, `91 123 45 67` | rules, per language |
+| ID numbers, passports, tax IDs, birth dates | DNI/NIE, SSN, NINO, NIR, Codice Fiscale… | rules, per language |
+| People, places, organisations | names, cities, companies | spaCy language model |
+| Your own words | project names, clients, nicknames | exact match you provide (*Extra words*) |
 
-CloakText utiliza una distribución portable `onedir`: `CloakText.exe` debe permanecer junto al resto de archivos de su carpeta.
+Languages: Spanish, English, French, German, Italian, Portuguese and Catalan.
 
-Cada release incluye `SHA256SUMS.txt`.
+## Download (Windows)
 
-### Verificar el ZIP
+Stable versions are published on [GitHub Releases](https://github.com/nmc03/cloaktext/releases). Download `CloakText-<version>-windows-x64.zip`, extract the **whole** folder and run `CloakText.exe`. Keep the executable next to the rest of its folder; it is a portable `onedir` build. The folder must be writable, because the key file and the language packs are stored inside it.
+
+### Verify the download
 
 ```powershell
 Get-FileHash .\CloakText-1.1.0-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
-Los hashes deben coincidir.
+The hashes must match. The executable is **not code-signed**, so Windows may show "Unknown publisher" or a SmartScreen warning (*More info → Run anyway*). Verify the SHA-256 first.
 
-CloakText 1.1.0 no está firmado digitalmente. Windows puede mostrar “Editor desconocido” o una advertencia de SmartScreen. Verifica el SHA-256 publicado en la release antes de ejecutar el archivo.
+## First use: language packs
 
-## Primer uso
+The base package does not ship third-party language models. The first time you use a language, CloakText shows the package name, its size (about 400–575 MB) and its license. Only if you accept, it downloads the package from the official [`explosion/spacy-models`](https://github.com/explosion/spacy-models) releases, verifies a SHA-256 pinned in the code, and installs it in `CloakText\models`. Afterwards that language works offline.
 
-El paquete base no redistribuye modelos lingüísticos de terceros. CloakText utiliza las variantes **grandes (`lg`)** de spaCy para priorizar precisión. Al utilizar un idioma por primera vez, CloakText muestra:
+Rule-based detection (emails, IBANs, phones, IDs…) does not need a language pack, but names, places and organisations do.
 
-- el paquete que necesita;
-- su tamaño;
-- la licencia del paquete.
+## Protecting the key with a password
 
-Solo si el usuario acepta, CloakText lo descarga desde los releases oficiales de `explosion/spacy-models`, verifica un SHA-256 fijado en el código y lo instala dentro de la carpeta de datos de CloakText.
-
-Después de esa instalación inicial, el análisis de ese idioma vuelve a ser local y puede funcionar sin conexión.
-
-Esto mantiene clara la licencia MIT de CloakText y evita mezclar dentro del ZIP modelos que tienen licencias distintas.
-
-## Dónde se guardan los modelos
-
-Como CloakText es portable, los modelos se conservan junto al ejecutable:
-
-CloakText\models
-
-La carpeta portable queda autocontenida:
-
-```text
-CloakText/
-├── CloakText.exe
-├── cloaktext.json
-└── models/
-```
-
-Si mueves toda la carpeta, se mueven también la clave predeterminada y los modelos ya descargados. La carpeta debe estar en una ubicación donde el usuario tenga permisos de escritura.
-
-Cada idioma queda en su propia carpeta:
-
-- Español: es_core_news_lg
-- Inglés: en_core_web_lg
-- Francés: fr_core_news_lg
-- Alemán: de_core_news_lg
-- Italiano: it_core_news_lg
-- Portugués: pt_core_news_lg
-- Catalán: ca_core_news_lg
-
-El archivo wheel se descarga temporalmente desde los releases oficiales de
-explosion/spacy-models, se verifica por tamaño y SHA-256, se extrae en esa
-carpeta y después se elimina el archivo temporal. Al cambiar de idioma,
-CloakText libera inmediatamente de RAM el modelo anterior antes de usar el
-nuevo.
-
-## Uso
-
-### Proteger un texto
-
-1. Selecciona **Proteger**.
-2. Elige el idioma.
-3. Pega el texto.
-4. Si es la primera vez que usas ese idioma, pulsa **Preparar idioma** y revisa su licencia.
-5. Pulsa **Proteger datos**.
-6. Revisa el texto protegido antes de compartirlo.
-7. CloakText actualiza automáticamente `cloaktext.json` junto al ejecutable.
-8. Si quieres una copia externa, pulsa **Exportar JSON**.
-
-### Restaurar un texto
-
-1. Selecciona **Restaurar**.
-2. Pega el texto protegido.
-3. Pulsa **Restaurar texto**: por defecto se usa `cloaktext.json`.
-4. Solo si necesitas otra clave, pulsa **Usar otro JSON** y selecciona el archivo.
+Open the **Key** menu → *Protect the key with a password…*. The key is then stored encrypted (AES-256-GCM, key derived with scrypt) and CloakText asks for the password when it starts. Exported copies stay encrypted too.
 
 > [!WARNING]
-> `cloaktext.json` contiene los datos originales y se guarda junto a la aplicación. Protégelo como protegerías el documento original y no lo publiques ni lo sincronices sin cifrado.
+> There is no password recovery. If you forget it, texts already protected cannot be restored.
 
-## Ejecutar desde código fuente
+## Privacy and security in short
 
-Requiere Python **3.11–3.14**. Se recomienda Python 3.12.
+- Text is processed locally and never uploaded.
+- No account, no telemetry. The only network access is the language-pack download you approve.
+- `cloaktext.json` contains your **original data in plain text**. Treat it like the original document and never publish or sync it unencrypted.
 
-### Windows
+Details in [PRIVACY.md](PRIVACY.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements-dev.txt
-python main.py
-```
+## Run from source
 
-### Linux / macOS
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements-dev.txt
-python main.py
-```
-
-La propia aplicación gestiona la instalación opcional de los paquetes de idioma. Para desarrollo también puedes instalar uno manualmente, por ejemplo:
-
-```bash
-python -m spacy download es_core_news_lg
-```
-
-## Compilar el EXE final
-
-El ejecutable Windows debe construirse en Windows.
+Requires Python 3.11–3.14 (3.12 recommended).
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
-
-python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
-python -m pip check
-
-python build.py
+python main.py
 ```
 
-Salida:
-
-```text
-dist/
-├── CloakText/
-│   ├── CloakText.exe
-│   ├── LICENSE.txt
-│   └── THIRD_PARTY_NOTICES.md
-├── CloakText-1.1.0-windows-x64.zip
-└── SHA256SUMS.txt
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python main.py
 ```
 
-Los modelos de idioma `lg` no se incluyen en el ZIP y no es necesario instalarlos para generar el EXE. Se descargan una sola vez bajo demanda y se verifican por SHA-256.
-
-Consulta [docs/BUILDING.md](docs/BUILDING.md) para el proceso de publicación.
-
-## Desarrollo
+## Development
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py branding.py version.py
+python -m compileall -q main.py motor_local.py language_models.py key_store.py i18n.py branding.py version.py
 python -m pip check
 ```
 
-Estructura:
-
 ```text
-main.py               Interfaz Flet
-motor_local.py        Detección y protección reversible
-language_models.py    Descarga, verificación e instalación de idiomas
-build.py              Build portable de Windows
-version.py            Versión
-tests/                Pruebas automatizadas
-.github/workflows/    CI, build Windows y release
+main.py               Flet user interface
+motor_local.py        Detection and reversible protection engine
+language_models.py    Download, verification and installation of language packs
+key_store.py          Atomic persistence of the restore key
+build.py              Portable Windows build
+scripts/              Developer tools (README screenshots)
+tests/                Automated tests
 ```
 
-## Seguridad y privacidad
+Building the Windows executable is described in [docs/BUILDING.md](docs/BUILDING.md). See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [CHANGELOG.md](CHANGELOG.md) for the history. Releases follow semantic versioning.
 
-- El contenido se procesa localmente.
-- Las descargas de idioma provienen de un origen fijado y se verifican por SHA-256 antes de instalarse.
-- La extracción del paquete rechaza rutas inseguras.
-- No publiques textos reales sensibles ni claves de restauración en issues.
+## License
 
-Consulta [SECURITY.md](SECURITY.md) para vulnerabilidades.
-
-## Contribuir
-
-Consulta [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Versiones
-
-CloakText usa versionado semántico. Consulta [CHANGELOG.md](CHANGELOG.md).
-
-La versión estable actual es **v1.1.0**.
-
-## Licencia
-
-El código original de CloakText se publica bajo la [MIT License](LICENSE).
-
-Flet, spaCy y los paquetes lingüísticos opcionales mantienen sus propias licencias. Consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Autor
+The original CloakText code is released under the [MIT License](LICENSE). Flet, spaCy and the optional language packs keep their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Some language packs carry licenses that are stricter than MIT (for example non-commercial or GPL terms); that is why they are downloaded on demand and not bundled.
 
 Copyright © 2026 Nahúm ([@nmc03](https://github.com/nmc03)).

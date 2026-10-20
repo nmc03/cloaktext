@@ -2,6 +2,37 @@
 
 El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
 
+## [Unreleased]
+
+### Corregido
+
+- **Privacidad:** un IBAN válido seguido de texto (por ejemplo, `ES91 2100 0418 4502 0005 1332 antes del viernes`) no se protegía, y en algunos casos el IBAN arrastraba la palabra siguiente. Ahora se recorta al IBAN válido y se comprueba la longitud oficial del país.
+- Los teléfonos fijos españoles con agrupación `91 123 45 67` ahora se detectan (español y catalán).
+
+### Añadido
+
+- **Clave cifrada con contraseña** (opcional): AES-256-GCM con clave derivada por scrypt, autenticada. Las claves antiguas en texto plano siguen funcionando. Nueva dependencia: `cryptography`.
+- **Interfaz en español e inglés** con selector en la cabecera; por defecto sigue el idioma de Windows.
+- **Resaltado** de los marcadores en el resultado, con interruptor.
+- **Palabras adicionales**: términos propios (proyectos, clientes, apodos) que siempre se protegen.
+- **Limpieza de entradas antiguas** (menú Clave) con fechas de alta en `cloaktext.dates.json` (sin datos originales).
+- Carpeta de datos alternativa (`%LOCALAPPDATA%\CloakText`) cuando la carpeta de la aplicación no admite escritura.
+- Pruebas de regresión para IBAN, teléfonos y DNI con letra incorrecta (se protege a propósito).
+- Capturas reales en el README y script `scripts/doc_screenshots.py` para regenerarlas.
+- `PRIVACY.md`, `README.es.md` y guía de contribución ampliada (inglés y español).
+
+### Cambiado
+
+- Pasaportes y NINO solo coinciden en mayúsculas (menos falsos positivos como `abc123456`).
+- El NIF portugués valida su dígito de control (antes protegía cualquier número de 9 cifras).
+- `anonimizar()` y `analizar_spans()` aceptan un parámetro opcional `terminos`.
+
+- README, SECURITY y CONTRIBUTING reescritos en inglés con versión en español; corrección de erratas de género en SECURITY.
+
+## [1.1.0] - 2026-10-07
+
+Versión de mantenimiento: workflow de compilación para Windows y documentación actualizados.
+
 ## [1.0.0] - 2026-10-03
 
 Primera versión preparada para distribución de escritorio.
