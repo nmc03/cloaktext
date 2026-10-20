@@ -32,10 +32,10 @@ Everything runs on your computer. The text is never sent to an API or a server.
 
 - **Reversible protection**: placeholders you can restore with a local key.
 - **Review before sharing**: protected items are highlighted in the result.
-- **Extra words**: add project names, clients or nicknames that must always be protected.
+- **Extra words**: add project names, clients or nicknames that must always be protected, or select text and press *Protect selection*.
 - **Encrypted key (optional)**: protect `cloaktext.json` with a password (AES-256-GCM).
 - **Key hygiene**: clear entries older than N days from the *Key* menu.
-- **Bilingual interface** (English / Spanish), following your Windows language, switchable from the header.
+- **Interface in 7 languages** (English, Spanish, French, German, Italian, Portuguese, Catalan), following your Windows language and switchable from the header.
 - **Works offline** and writes its data next to the app (or to your user profile if that folder is read-only).
 
 ## How it works
@@ -73,11 +73,20 @@ Stable versions are published on [GitHub Releases](https://github.com/nmc03/cloa
 ### Verify the download
 
 ```powershell
-Get-FileHash .\CloakText-1.1.0-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.0-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
-The hashes must match. The executable is **not code-signed**, so Windows may show "Unknown publisher" or a SmartScreen warning (*More info → Run anyway*). Verify the SHA-256 first.
+The hashes must match. The executable is **not code-signed** (a certificate costs money and this is a hobby project), so Windows may show "Unknown publisher" or a SmartScreen warning (*More info → Run anyway*). Instead of a signature, every release carries two checks you can run yourself:
+
+1. the SHA-256 above;
+2. a build-provenance attestation that proves the ZIP was built by this repository's GitHub Actions workflow from a specific commit:
+
+```powershell
+gh attestation verify .\CloakText-1.2.0-windows-x64.zip --repo nmc03/cloaktext
+```
+
+You can also build it yourself from source (see [docs/BUILDING.md](docs/BUILDING.md)).
 
 ## First use: language packs
 
@@ -121,14 +130,15 @@ python main.py
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py i18n.py branding.py version.py
+python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 python -m pip check
 ```
 
 ```text
 main.py               Flet user interface
-motor_local.py        Detection and reversible protection engine
-language_models.py    Download, verification and installation of language packs
+i18n.py + locales/     Interface strings (7 languages)
+local_engine.py        Detection and reversible protection engine
+language_packs.py    Download, verification and installation of language packs
 key_store.py          Atomic persistence of the restore key
 build.py              Portable Windows build
 scripts/              Developer tools (README screenshots)

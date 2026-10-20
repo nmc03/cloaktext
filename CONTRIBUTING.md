@@ -19,7 +19,7 @@ The first run of the Flet desktop client downloads its own runtime (one time, fr
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py i18n.py branding.py version.py
+python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 python -m pip check
 ```
 
@@ -30,9 +30,9 @@ CI runs the same three commands. The tests do not need language models: the engi
 - One goal per pull request, with tests when behaviour changes.
 - **Detection changes need both directions tested**: a case that must be protected and a case that must be left alone. When in doubt, favour protecting (a missed datum is worse than an extra placeholder).
 - Do not weaken the privacy model: no network access other than the pinned language-pack download, no logging of user text, no telemetry.
-- Language packs: URLs and SHA-256 hashes live in `language_models.py`. Changing a model version means updating both and the license table in `THIRD_PARTY_NOTICES.md`.
+- Language packs: URLs and SHA-256 hashes live in `language_packs.py`. Changing a model version means updating both and the license table in `THIRD_PARTY_NOTICES.md`.
 - Never rename keys or placeholder formats that users may already have stored in `cloaktext.json` (`[TYPE_1000]`); the format must stay readable by older keys.
-- Interface strings live in `i18n.py` (Spanish and English). Add every new string to **both** languages; a test fails if a key is missing or the format placeholders differ. Never translate placeholder type names (`PERSONA`, `EMAIL`…) or `cloaktext.json` keys.
+- Interface strings live in `locales/<code>.py` (one file per language: es, en, fr, de, it, pt, ca; `i18n.py` loads them). Add every new string to **all seven** files; a test fails if a key is missing, a string is left untranslated or the format placeholders differ. Code identifiers, comments and docstrings are in English. Never translate placeholder type names (`PERSONA`, `EMAIL`…) or `cloaktext.json` keys.
 - Commit messages: [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`…).
 
 ## README screenshots
@@ -62,7 +62,7 @@ La primera ejecución del cliente de escritorio de Flet descarga su propio runti
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py i18n.py branding.py version.py
+python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 python -m pip check
 ```
 
@@ -73,9 +73,9 @@ La CI ejecuta esos mismos tres comandos. Los tests no necesitan modelos de idiom
 - Un objetivo por pull request, con tests cuando cambie el comportamiento.
 - **Los cambios de detección se prueban en ambos sentidos**: un caso que debe protegerse y otro que debe dejarse intacto. En caso de duda, protege (omitir un dato es peor que un marcador de más).
 - No debilites el modelo de privacidad: ningún acceso a red salvo la descarga fijada de paquetes de idioma, ningún registro del texto del usuario, ninguna telemetría.
-- Paquetes de idioma: las URL y los SHA-256 están en `language_models.py`. Cambiar la versión de un modelo implica actualizar ambos y la tabla de licencias de `THIRD_PARTY_NOTICES.md`.
+- Paquetes de idioma: las URL y los SHA-256 están en `language_packs.py`. Cambiar la versión de un modelo implica actualizar ambos y la tabla de licencias de `THIRD_PARTY_NOTICES.md`.
 - No cambies el formato de marcadores (`[TIPO_1000]`) que los usuarios ya tienen en su `cloaktext.json`; las claves antiguas deben seguir siendo legibles.
-- Las cadenas de la interfaz están en `i18n.py` (español e inglés). Añade cada cadena nueva en **ambos** idiomas; un test falla si falta una clave o difieren los marcadores de formato. No traduzcas nunca los tipos de marcador (`PERSONA`, `EMAIL`…) ni las claves de `cloaktext.json`.
+- Las cadenas de la interfaz están en `locales/<código>.py` (un fichero por idioma: es, en, fr, de, it, pt, ca; `i18n.py` los carga). Añade cada cadena nueva en los **siete** ficheros; un test falla si falta una clave, queda sin traducir o difieren los marcadores de formato. Los identificadores, comentarios y docstrings del código están en inglés. No traduzcas nunca los tipos de marcador (`PERSONA`, `EMAIL`…) ni las claves de `cloaktext.json`.
 - Mensajes de commit: [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`…).
 
 ## Capturas del README

@@ -32,10 +32,10 @@ Todo se ejecuta en tu equipo. El texto no se envía a ninguna API ni servidor.
 
 - **Protección reversible**: marcadores que restauras con una clave local.
 - **Revisión antes de compartir**: lo protegido aparece resaltado en el resultado.
-- **Palabras adicionales**: añade nombres de proyectos, clientes o apodos que siempre deben protegerse.
+- **Palabras adicionales**: añade nombres de proyectos, clientes o apodos que siempre deben protegerse, o selecciona texto y pulsa *Proteger selección*.
 - **Clave cifrada (opcional)**: protege `cloaktext.json` con contraseña (AES-256-GCM).
 - **Higiene de la clave**: elimina las entradas con más de N días desde el menú *Clave*.
-- **Interfaz bilingüe** (español / inglés), según el idioma de Windows y editable desde la cabecera.
+- **Interfaz en 7 idiomas** (español, inglés, francés, alemán, italiano, portugués y catalán), según el idioma de Windows y editable desde la cabecera.
 - **Funciona sin conexión** y guarda sus datos junto a la aplicación (o en tu perfil de usuario si esa carpeta es de solo lectura).
 
 ## Cómo funciona
@@ -73,11 +73,20 @@ Las versiones estables están en [GitHub Releases](https://github.com/nmc03/cloa
 ### Verificar la descarga
 
 ```powershell
-Get-FileHash .\CloakText-1.1.0-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.0-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
-Los hashes deben coincidir. El ejecutable **no está firmado digitalmente**, así que Windows puede mostrar «Editor desconocido» o una advertencia de SmartScreen (*Más información → Ejecutar de todas formas*). Verifica antes el SHA-256.
+Los hashes deben coincidir. El ejecutable **no está firmado digitalmente** (un certificado cuesta dinero y esto es un proyecto personal), así que Windows puede mostrar «Editor desconocido» o una advertencia de SmartScreen (*Más información → Ejecutar de todas formas*). En lugar de una firma, cada versión incluye dos comprobaciones que puedes hacer tú mismo:
+
+1. el SHA-256 de arriba;
+2. una atestación de procedencia que demuestra que el ZIP lo generó el workflow de GitHub Actions de este repositorio a partir de un commit concreto:
+
+```powershell
+gh attestation verify .\CloakText-1.2.0-windows-x64.zip --repo nmc03/cloaktext
+```
+
+También puedes compilarlo tú desde el código fuente (consulta [docs/BUILDING.md](docs/BUILDING.md)).
 
 ## Primer uso: paquetes de idioma
 
@@ -115,7 +124,7 @@ python main.py
 
 ```bash
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py i18n.py branding.py version.py
+python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 python -m pip check
 ```
 

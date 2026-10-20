@@ -21,7 +21,7 @@ python -m pip install -r requirements-dev.txt
 
 ```powershell
 python -m pytest
-python -m compileall -q main.py motor_local.py language_models.py key_store.py i18n.py branding.py version.py
+python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 python -m pip check
 ```
 
@@ -47,7 +47,7 @@ dist/
 ├── CloakText/
 │   ├── CloakText.exe
 │   └── ...
-├── CloakText-1.1.0-windows-x64.zip
+├── CloakText-1.2.0-windows-x64.zip
 └── SHA256SUMS.txt
 ```
 
@@ -78,6 +78,25 @@ Antes del tag:
 5. crea `vX.Y.Z`.
 
 ```powershell
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
+
+## Code signing (not done today)
+
+Releases are **unsigned**, so Windows shows an "Unknown publisher" / SmartScreen warning. Instead of a signature, the release workflow publishes:
+
+- `SHA256SUMS.txt` next to the ZIP;
+- a GitHub build-provenance attestation for the ZIP, which proves it was built by this repository's workflow from a given commit:
+
+```powershell
+gh attestation verify .\CloakText-1.2.0-windows-x64.zip --repo nmc03/cloaktext
+```
+
+If you later obtain a code-signing certificate, sign `dist/CloakText/CloakText.exe` **before** `build.py` zips it (or re-create the ZIP and `SHA256SUMS.txt` afterwards):
+
+```powershell
+signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f certificate.pfx /p <password> dist\CloakText\CloakText.exe
+```
+
+Keep the certificate and its password out of the repository; use repository secrets if the signing step is added to the workflow.

@@ -2,7 +2,7 @@
 
 El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
 
-## [Unreleased]
+## [1.2.0] - 2026-10-20
 
 ### Corregido
 
@@ -12,7 +12,9 @@ El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
 ### Añadido
 
 - **Clave cifrada con contraseña** (opcional): AES-256-GCM con clave derivada por scrypt, autenticada. Las claves antiguas en texto plano siguen funcionando. Nueva dependencia: `cryptography`.
-- **Interfaz en español e inglés** con selector en la cabecera; por defecto sigue el idioma de Windows.
+- **Interfaz en 7 idiomas** (español, inglés, francés, alemán, italiano, portugués y catalán) con selector en la cabecera; por defecto sigue el idioma de Windows.
+- **Proteger selección**: selecciona texto en la entrada y añádelo a las palabras adicionales con un clic.
+- Atestación de procedencia de la compilación (GitHub Actions) para el ZIP de Windows, como alternativa a la firma de código.
 - **Resaltado** de los marcadores en el resultado, con interruptor.
 - **Palabras adicionales**: términos propios (proyectos, clientes, apodos) que siempre se protegen.
 - **Limpieza de entradas antiguas** (menú Clave) con fechas de alta en `cloaktext.dates.json` (sin datos originales).
@@ -23,6 +25,7 @@ El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
 
 ### Cambiado
 
+- **Código en inglés**: identificadores, módulos (`motor_local.py` → `local_engine.py`, `language_models.py` → `language_packs.py`), comentarios y docstrings. No cambia ningún formato persistido (`cloaktext.json`, tipos de marcador, claves de ajustes).
 - Pasaportes y NINO solo coinciden en mayúsculas (menos falsos positivos como `abc123456`).
 - El NIF portugués valida su dígito de control (antes protegía cualquier número de 9 cifras).
 - `anonimizar()` y `analizar_spans()` aceptan un parámetro opcional `terminos`.
