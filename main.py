@@ -7,15 +7,34 @@ from collections import Counter
 from datetime import datetime
 import json
 import logging
-from pathlib import Path
 import re
 
 import flet as ft
 
 from branding import LOGO_BYTES
-from motor_local import IDIOMAS_SOPORTADOS, ModeloNoDisponibleError, MotorLocal
+from i18n import UI_LANGUAGES, get_language, resolve_language, set_language, tr
+from key_store import (
+    MIN_PASSWORD_LENGTH,
+    KeyEncryptedError,
+    WrongPasswordError,
+    decrypt_key,
+    default_key_path,
+    encrypt_key,
+    find_older_than,
+    is_encrypted,
+    is_encrypted_envelope,
+    load_dates,
+    load_key,
+    load_settings,
+    purge,
+    save_dates,
+    save_key_atomic,
+    save_settings,
+    stamp_tokens,
+    using_fallback_directory,
+)
 from language_models import info_modelo
-from key_store import default_key_path, load_key, save_key_atomic
+from motor_local import IDIOMAS_SOPORTADOS, ModeloNoDisponibleError, MotorLocal
 from version import __version__
 
 logging.basicConfig(
@@ -24,16 +43,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
-NOMBRES_IDIOMA = {
-    "es": "Español",
-    "en": "Inglés",
-    "fr": "Francés",
-    "de": "Alemán",
-    "it": "Italiano",
-    "pt": "Portugués",
-    "ca": "Catalán",
-}
 
 C_MARCA = ft.Colors.BLUE_700
 C_MARCA_OSCURO = ft.Colors.BLUE_900
@@ -52,12 +61,36 @@ G_RESTA = ft.LinearGradient(
 )
 
 TOKEN_TIPO_RE = re.compile(r"\[([A-Z][A-Z0-9_]*)_\d+\]")
+TOKEN_RESALTADO_RE = re.compile(r"(\[[A-Z][A-Z0-9_]*_\d+\])")
 MAX_DICCIONARIO_BYTES = 10 * 1024 * 1024
+
+
+def nombre_idioma(codigo: str) -> str:
+    return tr(f"lang.{codigo}")
+
+
+def spans_resaltados(texto: str) -> list[ft.TextSpan]:
+    """Divide `texto` resaltando los marcadores `[TIPO_1000]`."""
+    estilo = ft.TextStyle(
+        bgcolor=ft.Colors.PRIMARY_CONTAINER,
+        color=ft.Colors.ON_PRIMARY_CONTAINER,
+        weight=ft.FontWeight.BOLD,
+    )
+    spans: list[ft.TextSpan] = []
+    for trozo in TOKEN_RESALTADO_RE.split(texto):
+        if not trozo:
+            continue
+        if TOKEN_RESALTADO_RE.fullmatch(trozo):
+            spans.append(ft.TextSpan(trozo, style=estilo))
+        else:
+            spans.append(ft.TextSpan(trozo))
+    return spans
 
 
 class CloakTextApp:
     def __init__(self, page: ft.Page):
         self.page = page
+        set_language(resolve_language(load_settings().get("ui_language")))
         self.motor = MotorLocal(ttl_minutos=20)
         self.clipboard = ft.Clipboard()
         self.modo = "anon"
@@ -66,11 +99,15 @@ class CloakTextApp:
         self.nombre_clave_personalizada: str | None = None
         self.ruta_clave_predeterminada = default_key_path()
         self._busy = False
+        self._password: str | None = None
+        self._clave_bloqueada = False
 
         self._configurar_pagina()
         self._construir_ui()
         self._inicializar_clave_predeterminada()
         page.run_task(self._actualizar_estado_periodico)
+        if self._clave_bloqueada:
+            self._mostrar_desbloqueo()
 
     def _configurar_pagina(self) -> None:
         self.page.title = "CloakText"
@@ -91,44 +128,46 @@ class CloakTextApp:
             self.page.window.prevent_close = True
             self.page.window.on_event = self._on_window_event
 
+    # ------------------------------------------------------------------ UI
+
     def _construir_ui(self) -> None:
         self.dd_idioma = ft.Dropdown(
-            label="Idioma del texto",
+            label=tr("lang.label"),
             width=220,
-            value="es",
+            value=getattr(self, "_idioma_texto", "es"),
             on_select=self._on_idioma_cambiado,
             options=[
-                ft.DropdownOption(key=codigo, text=NOMBRES_IDIOMA[codigo])
-                for codigo in sorted(IDIOMAS_SOPORTADOS, key=lambda c: NOMBRES_IDIOMA[c])
+                ft.DropdownOption(key=codigo, text=nombre_idioma(codigo))
+                for codigo in sorted(IDIOMAS_SOPORTADOS, key=nombre_idioma)
             ],
         )
 
         self.txt_estado_modelo = ft.Text(
-            "Idioma pendiente",
+            tr("model.pending"),
             size=12,
             color=ft.Colors.OUTLINE,
         )
         self.btn_modelo = ft.OutlinedButton(
-            content="Preparar idioma",
+            content=tr("btn.prepare_language"),
             icon=ft.Icons.DOWNLOAD_OUTLINED,
             on_click=self._on_accion_modelo,
         )
 
         self.btn_modo_anon = ft.Button(
-            content="Proteger",
+            content=tr("mode.protect"),
             icon=ft.Icons.VISIBILITY_OFF_OUTLINED,
             on_click=lambda _: self._cambiar_modo("anon"),
         )
         self.btn_modo_resta = ft.OutlinedButton(
-            content="Restaurar",
+            content=tr("mode.restore"),
             icon=ft.Icons.VISIBILITY_OUTLINED,
             on_click=lambda _: self._cambiar_modo("resta"),
         )
 
         self.txt_entrada = ft.TextField(
-            label="Texto a proteger",
+            label=tr("field.input_protect"),
             margin=ft.Margin.symmetric(horizontal=4, vertical=2),
-            hint_text="Pega aquí el texto con datos sensibles que quieres proteger…",
+            hint_text=tr("hint.input_protect"),
             multiline=True,
             min_lines=12,
             max_lines=18,
@@ -136,25 +175,38 @@ class CloakTextApp:
             on_change=self._on_texto_cambiado,
         )
         self.txt_contador = ft.Text(
-            "0 caracteres",
+            tr("counter.zero"),
             size=11,
             color=ft.Colors.OUTLINE,
         )
+        self.btn_terminos = ft.TextButton(
+            content=tr("terms.toggle"),
+            icon=ft.Icons.EDIT_NOTE_OUTLINED,
+            on_click=self._on_alternar_terminos,
+        )
+        self.txt_terminos = ft.TextField(
+            label=tr("terms.label"),
+            hint_text=tr("terms.hint"),
+            multiline=True,
+            min_lines=3,
+            max_lines=6,
+            visible=False,
+        )
 
         self.txt_clave_activa = ft.Text(
-            "Restauración: cloaktext.json predeterminado",
+            tr("restore.active_default"),
             size=12,
             color=ft.Colors.OUTLINE,
             visible=False,
         )
         self.btn_cargar_diccionario = ft.OutlinedButton(
-            content="Usar otro JSON",
+            content=tr("btn.other_json"),
             icon=ft.Icons.FILE_OPEN_OUTLINED,
             on_click=self._on_cargar_diccionario,
             visible=False,
         )
         self.btn_usar_predeterminado = ft.TextButton(
-            content="Usar cloaktext.json",
+            content=tr("btn.default_json"),
             icon=ft.Icons.RESTART_ALT,
             on_click=self._on_usar_predeterminado,
             visible=False,
@@ -168,43 +220,60 @@ class CloakTextApp:
         )
 
         self.btn_ejecutar = ft.Button(
-            content="Proteger datos",
+            content=tr("btn.run_protect"),
             icon=ft.Icons.SHIELD_OUTLINED,
             on_click=self._on_ejecutar,
         )
         self.btn_limpiar_texto = ft.OutlinedButton(
-            content="Limpiar",
+            content=tr("common.clear"),
             icon=ft.Icons.CLEAR_ALL_OUTLINED,
             on_click=self._on_limpiar_texto,
         )
         self.btn_limpiar_json = ft.TextButton(
-            content="Limpiar JSON",
+            content=tr("btn.clear_json"),
             icon=ft.Icons.DELETE_FOREVER_OUTLINED,
             on_click=self._on_limpiar_json,
             style=ft.ButtonStyle(color=ft.Colors.ERROR),
         )
 
         self.txt_resultado = ft.TextField(
-            label="Texto protegido",
+            label=tr("field.result_protect"),
             margin=ft.Margin.symmetric(horizontal=4, vertical=2),
-            hint_text="El resultado aparecerá aquí.",
+            hint_text=tr("hint.result_protect"),
             multiline=True,
             min_lines=12,
             max_lines=18,
             read_only=True,
         )
+        self.texto_resaltado = ft.Text("", selectable=True, size=14)
+        self.vista_resaltada = ft.Container(
+            visible=False,
+            height=318,
+            padding=14,
+            margin=ft.Margin.symmetric(horizontal=4, vertical=2),
+            border=ft.Border.all(1, ft.Colors.OUTLINE),
+            border_radius=4,
+            content=ft.Column(controls=[self.texto_resaltado], scroll=ft.ScrollMode.AUTO),
+        )
+        self.sw_resaltar = ft.Switch(
+            label=tr("highlight.switch"),
+            value=True,
+            on_change=self._on_alternar_resaltado,
+            visible=False,
+        )
         self.txt_resumen = ft.Text(
-            "Todavía no se ha procesado ningún texto.",
+            tr("summary.none_yet"),
             size=12,
             color=ft.Colors.OUTLINE,
         )
         self.btn_copiar_resultado = ft.OutlinedButton(
-            content="Copiar texto",
+            content=tr("btn.copy"),
             icon=ft.Icons.CONTENT_COPY,
             on_click=self._on_copiar_resultado,
             disabled=True,
         )
 
+        self.txt_aviso_mapa = ft.Text("", size=12, color=ft.Colors.AMBER_900, expand=True)
         self.aviso_mapa = ft.Container(
             visible=False,
             padding=12,
@@ -213,21 +282,62 @@ class CloakTextApp:
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.KEY_OUTLINED, color=ft.Colors.AMBER_900, size=20),
-                    ft.Text(
-                        "La clave se guarda automáticamente en cloaktext.json junto a la aplicación. "
-                        "Contiene datos originales: protégela como información confidencial.",
-                        size=12,
-                        color=ft.Colors.AMBER_900,
-                        expand=True,
-                    ),
+                    self.txt_aviso_mapa,
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
         self.btn_exportar_diccionario = ft.OutlinedButton(
-            content="Exportar JSON",
+            content=tr("btn.export"),
             icon=ft.Icons.SAVE_ALT_OUTLINED,
             on_click=self._on_guardar_diccionario,
+        )
+        self.menu_clave = ft.PopupMenuButton(
+            content=ft.Container(
+                padding=ft.Padding.symmetric(horizontal=12, vertical=9),
+                border_radius=20,
+                border=ft.Border.all(1, ft.Colors.OUTLINE),
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.KEY_OUTLINED, size=18),
+                        ft.Text(tr("menu.key"), size=13),
+                        ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
+                    ],
+                    spacing=6,
+                    tight=True,
+                ),
+            ),
+            items=[],
+        )
+        self._actualizar_menu_clave()
+
+        selector_idioma_ui = ft.PopupMenuButton(
+            tooltip=tr("ui.language_tooltip"),
+            content=ft.Container(
+                padding=ft.Padding.symmetric(horizontal=12, vertical=7),
+                border_radius=999,
+                bgcolor=ft.Colors.WHITE_12,
+                content=ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.LANGUAGE, color=ft.Colors.WHITE, size=16),
+                        ft.Text(
+                            get_language().upper(),
+                            size=11,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
+                    ],
+                    spacing=6,
+                ),
+            ),
+            items=[
+                ft.PopupMenuItem(
+                    content=nombre,
+                    data=codigo,
+                    on_click=self._on_cambiar_idioma_ui,
+                )
+                for codigo, nombre in UI_LANGUAGES.items()
+            ],
         )
 
         self.cabecera = ft.Container(
@@ -258,7 +368,7 @@ class CloakTextApp:
                                 color=ft.Colors.WHITE,
                             ),
                             ft.Text(
-                                "Protección local y reversible para texto sensible",
+                                tr("app.tagline"),
                                 size=12,
                                 color=ft.Colors.WHITE_70,
                             ),
@@ -266,6 +376,7 @@ class CloakTextApp:
                         spacing=2,
                     ),
                     ft.Container(expand=True),
+                    selector_idioma_ui,
                     ft.Container(
                         padding=ft.Padding.symmetric(horizontal=12, vertical=7),
                         border_radius=999,
@@ -274,7 +385,7 @@ class CloakTextApp:
                             controls=[
                                 ft.Icon(ft.Icons.LOCK_OUTLINE, color=ft.Colors.WHITE, size=16),
                                 ft.Text(
-                                    "100 % local",
+                                    tr("app.badge_local"),
                                     size=11,
                                     weight=ft.FontWeight.BOLD,
                                     color=ft.Colors.WHITE,
@@ -285,6 +396,7 @@ class CloakTextApp:
                     ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12,
             ),
         )
 
@@ -314,8 +426,8 @@ class CloakTextApp:
         )
 
         card_entrada = self._card(
-            "1. Texto a proteger",
-            "Elige el idioma y pega el contenido. El texto nunca se envía fuera del equipo.",
+            tr("card.input_title"),
+            tr("card.input_sub"),
             ft.Column(
                 controls=[
                     ft.Row(
@@ -324,9 +436,10 @@ class CloakTextApp:
                     ),
                     self.txt_entrada,
                     ft.Row(
-                        controls=[self.txt_contador],
-                        alignment=ft.MainAxisAlignment.END,
+                        controls=[self.btn_terminos, ft.Container(expand=True), self.txt_contador],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
+                    self.txt_terminos,
                     ft.Row(
                         controls=[
                             self.txt_clave_activa,
@@ -359,11 +472,13 @@ class CloakTextApp:
         card_entrada.col = {"xs": 12, "lg": 6}
 
         card_resultado = self._card(
-            "2. Texto protegido",
-            "Comprueba el resultado antes de compartirlo. CloakText resalta lo que ha protegido automáticamente.",
+            tr("card.result_title"),
+            tr("card.result_sub"),
             ft.Column(
                 controls=[
+                    self.sw_resaltar,
                     self.txt_resultado,
+                    self.vista_resaltada,
                     ft.Row(
                         controls=[
                             self.txt_resumen,
@@ -374,8 +489,8 @@ class CloakTextApp:
                     ),
                     self.aviso_mapa,
                     ft.Row(
-                        controls=[self.btn_exportar_diccionario],
-                        alignment=ft.MainAxisAlignment.END,
+                        controls=[self.menu_clave, ft.Container(expand=True), self.btn_exportar_diccionario],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -393,7 +508,7 @@ class CloakTextApp:
                 ),
                 ft.Container(expand=True),
                 ft.Text(
-                    "Local · reversible · sin telemetría de contenido",
+                    tr("app.footer"),
                     size=11,
                     color=ft.Colors.OUTLINE,
                 ),
@@ -409,7 +524,7 @@ class CloakTextApp:
                     controls=[
                         ft.Container(
                             content=ft.Text(
-                                "Protege, revisa y comparte. Tú mantienes el control del texto y de la clave.",
+                                tr("app.intro"),
                                 size=12,
                                 color=ft.Colors.OUTLINE,
                             ),
@@ -467,7 +582,7 @@ class CloakTextApp:
             color=ft.Colors.WHITE if not en_anon else ft.Colors.ON_SURFACE,
         )
 
-        self.btn_ejecutar.content = "Proteger datos" if en_anon else "Restaurar texto"
+        self.btn_ejecutar.content = tr("btn.run_protect") if en_anon else tr("btn.run_restore")
         self.btn_ejecutar.icon = (
             ft.Icons.SHIELD_OUTLINED if en_anon else ft.Icons.VISIBILITY_OUTLINED
         )
@@ -478,17 +593,18 @@ class CloakTextApp:
         self.cabecera.gradient = G_MARCA if en_anon else G_RESTA
         self.dd_idioma.visible = en_anon
         self.estado_modelo.visible = en_anon
-        self.txt_entrada.label = "Texto a proteger" if en_anon else "Texto protegido"
+        self.btn_terminos.visible = en_anon
+        if not en_anon:
+            self.txt_terminos.visible = False
+        self.txt_entrada.label = tr("field.input_protect") if en_anon else tr("field.input_restore")
         self.txt_entrada.hint_text = (
-            "Pega aquí el texto que quieres proteger…"
-            if en_anon
-            else "Pega aquí el texto protegido que quieres restaurar…"
+            tr("hint.input_protect") if en_anon else tr("hint.input_restore")
         )
-        self.txt_resultado.label = "Texto protegido" if en_anon else "Texto restaurado"
+        self.txt_resultado.label = (
+            tr("field.result_protect") if en_anon else tr("field.result_restore")
+        )
         self.txt_resultado.hint_text = (
-            "El texto listo para compartir aparecerá aquí."
-            if en_anon
-            else "El texto restaurado aparecerá aquí."
+            tr("hint.result_protect") if en_anon else tr("hint.result_restore")
         )
         self.txt_clave_activa.visible = not en_anon
         self.btn_cargar_diccionario.visible = not en_anon
@@ -498,23 +614,336 @@ class CloakTextApp:
         self._actualizar_texto_clave_activa()
         self._limpiar_resultado()
 
+    def _on_alternar_terminos(self, _event) -> None:
+        self.txt_terminos.visible = not self.txt_terminos.visible
+        self.page.update()
+
+    def _terminos_manuales(self) -> list[str]:
+        return (self.txt_terminos.value or "").splitlines()
+
+    # ------------------------------------------------- idioma de la interfaz
+
+    def _on_cambiar_idioma_ui(self, event) -> None:
+        codigo = event.control.data
+        if codigo == get_language() or self._busy:
+            return
+        set_language(codigo)
+        ajustes = load_settings()
+        ajustes["ui_language"] = codigo
+        save_settings(ajustes)
+
+        entrada = self.txt_entrada.value or ""
+        terminos = self.txt_terminos.value or ""
+        mostrar_terminos = self.txt_terminos.visible
+        modo = self.modo
+        self._idioma_texto = self.dd_idioma.value or "es"
+
+        self.page.controls.clear()
+        self.modo = "anon"
+        self._construir_ui()
+        self.txt_entrada.value = entrada
+        self.txt_terminos.value = terminos
+        self.txt_terminos.visible = mostrar_terminos
+        self._actualizar_contador()
+        if modo != "anon":
+            self._cambiar_modo(modo)
+        self.page.update()
+
+    # ----------------------------------------------------------------- clave
+
+    def _cargar_clave(self) -> dict[str, str]:
+        return load_key(password=self._password)
+
+    def _guardar_clave(self, mapa: dict[str, str]) -> None:
+        save_key_atomic(mapa, password=self._password)
+
     def _inicializar_clave_predeterminada(self) -> None:
         try:
             if not self.ruta_clave_predeterminada.exists():
                 save_key_atomic({})
+            elif is_encrypted():
+                self._clave_bloqueada = True
             else:
                 mapa = load_key()
                 self.motor.validar_mapa(mapa)
         except (OSError, ValueError):
             logger.exception("No se pudo inicializar cloaktext.json")
+        self._actualizar_menu_clave()
+
+    def _clave_esta_cifrada(self) -> bool:
+        return self._password is not None or self._clave_bloqueada
+
+    def _actualizar_texto_aviso_mapa(self) -> None:
+        clave = "notice.key_encrypted" if self._clave_esta_cifrada() else "notice.key_plain"
+        donde = (
+            tr("notice.where_profile", path=str(self.ruta_clave_predeterminada.parent))
+            if using_fallback_directory()
+            else tr("notice.where_app")
+        )
+        self.txt_aviso_mapa.value = tr(clave, where=donde)
+
+    def _actualizar_menu_clave(self) -> None:
+        if self._clave_esta_cifrada():
+            items = [
+                ft.PopupMenuItem(
+                    content=tr("menu.change_password"),
+                    icon=ft.Icons.LOCK_RESET,
+                    on_click=self._on_establecer_contrasena,
+                ),
+                ft.PopupMenuItem(
+                    content=tr("menu.remove_password"),
+                    icon=ft.Icons.LOCK_OPEN_OUTLINED,
+                    on_click=self._on_quitar_contrasena,
+                ),
+            ]
+        else:
+            items = [
+                ft.PopupMenuItem(
+                    content=tr("menu.set_password"),
+                    icon=ft.Icons.LOCK_OUTLINE,
+                    on_click=self._on_establecer_contrasena,
+                )
+            ]
+        items.append(
+            ft.PopupMenuItem(
+                content=tr("menu.purge"),
+                icon=ft.Icons.AUTO_DELETE_OUTLINED,
+                on_click=self._on_limpiar_antiguas,
+            )
+        )
+        self.menu_clave.items = items
+        self._actualizar_texto_aviso_mapa()
+
+    def _dialogo_contrasena(
+        self,
+        titulo: str,
+        cuerpo: str,
+        etiqueta_boton: str,
+        al_confirmar,
+        repetir: bool = False,
+    ) -> None:
+        """Diálogo modal con contraseña. `al_confirmar(pw)` devuelve un error (str) o None."""
+        campo = ft.TextField(
+            label=tr("pw.field"),
+            password=True,
+            can_reveal_password=True,
+            autofocus=True,
+        )
+        campo2 = (
+            ft.TextField(label=tr("pw.field_confirm"), password=True, can_reveal_password=True)
+            if repetir
+            else None
+        )
+
+        async def confirmar(_event) -> None:
+            password = campo.value or ""
+            if campo2 is not None:
+                if len(password) < MIN_PASSWORD_LENGTH:
+                    campo.error = tr("pw.error_short", n=MIN_PASSWORD_LENGTH)
+                    self.page.update()
+                    return
+                if password != (campo2.value or ""):
+                    campo2.error = tr("pw.error_mismatch")
+                    self.page.update()
+                    return
+            error = await al_confirmar(password)
+            if error:
+                campo.error = error
+                self.page.update()
+                return
+            self.page.pop_dialog()
+            self.page.update()
+
+        controles: list[ft.Control] = [ft.Text(cuerpo, size=13), campo]
+        if campo2 is not None:
+            controles.append(campo2)
+        campo.on_submit = confirmar
+        self.page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text(titulo),
+                content=ft.Column(controls=controles, tight=True, spacing=12, width=420),
+                actions=[
+                    ft.TextButton(content=tr("common.cancel"), on_click=lambda _: self.page.pop_dialog()),
+                    ft.Button(content=etiqueta_boton, on_click=confirmar),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+        )
+
+    def _mostrar_desbloqueo(self) -> None:
+        async def desbloquear(password: str) -> str | None:
+            try:
+                mapa = await asyncio.to_thread(load_key, None, password)
+                self.motor.validar_mapa(mapa)
+            except WrongPasswordError:
+                return tr("pw.error_wrong")
+            except ValueError as exc:
+                return str(exc)
+            self._password = password
+            self._clave_bloqueada = False
+            self._actualizar_menu_clave()
+            self._snack(tr("pw.unlocked"))
+            return None
+
+        self._dialogo_contrasena(
+            tr("pw.unlock_title"),
+            tr("pw.unlock_body", name=self.ruta_clave_predeterminada.name),
+            tr("pw.unlock_btn"),
+            desbloquear,
+        )
+
+    async def _on_establecer_contrasena(self, _event) -> None:
+        if self._busy:
+            return
+        if self._clave_bloqueada:
+            self._mostrar_desbloqueo()
+            return
+
+        async def cifrar(password: str) -> str | None:
+            try:
+                mapa = await asyncio.to_thread(self._cargar_clave)
+                await asyncio.to_thread(save_key_atomic, mapa, None, password)
+            except (OSError, ValueError) as exc:
+                return str(exc)
+            self._password = password
+            self._actualizar_menu_clave()
+            self._snack(tr("pw.set_done"))
+            return None
+
+        self._dialogo_contrasena(
+            tr("pw.set_title"),
+            tr("pw.set_body"),
+            tr("pw.set_btn"),
+            cifrar,
+            repetir=True,
+        )
+
+    def _on_quitar_contrasena(self, _event) -> None:
+        if self._busy or self._password is None:
+            return
+
+        async def quitar(_e) -> None:
+            try:
+                mapa = await asyncio.to_thread(self._cargar_clave)
+                await asyncio.to_thread(save_key_atomic, mapa)
+            except (OSError, ValueError) as exc:
+                self._snack(str(exc))
+                return
+            self._password = None
+            self._actualizar_menu_clave()
+            self.page.pop_dialog()
+            self._snack(tr("pw.remove_done"))
+
+        self.page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                icon=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.ERROR),
+                title=ft.Text(tr("pw.remove_title")),
+                content=ft.Text(tr("pw.remove_body")),
+                actions=[
+                    ft.TextButton(content=tr("common.cancel"), on_click=lambda _: self.page.pop_dialog()),
+                    ft.Button(
+                        content=tr("pw.remove_btn"),
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR, color=ft.Colors.ON_ERROR),
+                        on_click=quitar,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+        )
+
+    async def _on_limpiar_antiguas(self, _event) -> None:
+        if self._busy:
+            return
+        if self._clave_bloqueada:
+            self._mostrar_desbloqueo()
+            return
+        try:
+            mapa = await asyncio.to_thread(self._cargar_clave)
+        except (OSError, ValueError) as exc:
+            self._snack(str(exc))
+            return
+        fechas = stamp_tokens(mapa, load_dates())
+
+        campo = ft.TextField(
+            label=tr("purge.days"),
+            value="30",
+            width=140,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            input_filter=ft.NumbersOnlyInputFilter(),
+            max_length=5,
+        )
+        resumen = ft.Text("", size=13)
+
+        def dias() -> int | None:
+            try:
+                return int(campo.value or "")
+            except ValueError:
+                return None
+
+        def refrescar(_e=None) -> None:
+            n = dias()
+            if n is None:
+                resumen.value = tr("purge.invalid")
+            else:
+                resumen.value = tr(
+                    "purge.count", count=len(find_older_than(fechas, n)), total=len(mapa)
+                )
+            self.page.update()
+
+        async def eliminar(_e) -> None:
+            n = dias()
+            if n is None:
+                refrescar()
+                return
+            antiguos = find_older_than(fechas, n)
+            nuevo_mapa, nuevas_fechas = purge(mapa, fechas, antiguos)
+            try:
+                await asyncio.to_thread(self._guardar_clave, nuevo_mapa)
+                await asyncio.to_thread(save_dates, nuevas_fechas)
+            except (OSError, ValueError) as exc:
+                self._snack(str(exc))
+                return
+            self.mapa_actual = {}
+            self.page.pop_dialog()
+            self._snack(tr("purge.done", count=len(antiguos)))
+
+        campo.on_change = refrescar
+        resumen.value = tr("purge.count", count=len(find_older_than(fechas, 30)), total=len(mapa))
+        self.page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text(tr("purge.title")),
+                content=ft.Column(
+                    controls=[ft.Text(tr("purge.body"), size=13), campo, resumen],
+                    tight=True,
+                    spacing=12,
+                    width=420,
+                ),
+                actions=[
+                    ft.TextButton(content=tr("common.cancel"), on_click=lambda _: self.page.pop_dialog()),
+                    ft.Button(
+                        content=tr("purge.btn"),
+                        icon=ft.Icons.DELETE_FOREVER_OUTLINED,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR, color=ft.Colors.ON_ERROR),
+                        on_click=eliminar,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+        )
+
+    # ------------------------------------------------------------ restaurar
 
     def _actualizar_texto_clave_activa(self) -> None:
         if self.mapa_restauracion_personalizado is not None:
-            self.txt_clave_activa.value = (
-                f"Restauración: {self.nombre_clave_personalizada or 'JSON personalizado'}"
+            self.txt_clave_activa.value = tr(
+                "restore.active_custom",
+                name=self.nombre_clave_personalizada or tr("restore.custom_fallback_name"),
             )
         else:
-            self.txt_clave_activa.value = "Restauración: cloaktext.json predeterminado"
+            self.txt_clave_activa.value = tr("restore.active_default")
 
     def _on_usar_predeterminado(self, _event) -> None:
         self.mapa_restauracion_personalizado = None
@@ -522,12 +951,22 @@ class CloakTextApp:
         self.btn_usar_predeterminado.visible = False
         self._actualizar_texto_clave_activa()
         self.page.update()
-        self._snack("Se usará cloaktext.json para restaurar.")
+        self._snack(tr("msg.use_default"))
+
+    def _actualizar_contador(self) -> None:
+        texto = self.txt_entrada.value or ""
+        if not texto:
+            self.txt_contador.value = tr("counter.zero")
+            return
+        lineas = texto.count("\n") + 1
+        self.txt_contador.value = tr(
+            "counter",
+            chars=f"{len(texto):,}".replace(",", "."),
+            lines=f"{lineas:,}".replace(",", "."),
+        )
 
     def _on_texto_cambiado(self, _event) -> None:
-        texto = self.txt_entrada.value or ""
-        lineas = texto.count("\n") + (1 if texto else 0)
-        self.txt_contador.value = f"{len(texto):,} caracteres · {lineas:,} líneas".replace(",", ".")
+        self._actualizar_contador()
         self.txt_contador.update()
 
     def _on_idioma_cambiado(self, _event) -> None:
@@ -547,20 +986,16 @@ class CloakTextApp:
 
     def _mostrar_instalacion_idioma(self, idioma: str) -> None:
         info = info_modelo(idioma)
-        nombre = NOMBRES_IDIOMA.get(idioma, idioma)
+        nombre = nombre_idioma(idioma)
         tamano = info.size_bytes / (1024 * 1024)
         dialogo = ft.AlertDialog(
             modal=True,
-            title=ft.Text(f"Preparar {nombre}"),
+            title=ft.Text(tr("model.dialog_title", name=nombre)),
             content=ft.Column(
                 controls=[
+                    ft.Text(tr("model.dialog_body", size=tamano)),
                     ft.Text(
-                        f"CloakText necesita un paquete de idioma de {tamano:.1f} MB "
-                        "para reconocer personas, lugares y organizaciones."
-                    ),
-                    ft.Text(
-                        "Se descargará una sola vez desde el repositorio oficial de spaCy. "
-                        "Después, el análisis del texto seguirá siendo local y podrá funcionar sin conexión.",
+                        tr("model.dialog_note"),
                         size=12,
                         color=ft.Colors.OUTLINE,
                     ),
@@ -569,7 +1004,7 @@ class CloakTextApp:
                         border_radius=12,
                         bgcolor=ft.Colors.SURFACE_CONTAINER,
                         content=ft.Text(
-                            f"Licencia del paquete: {info.license}",
+                            tr("model.dialog_license", license=info.license),
                             size=12,
                             weight=ft.FontWeight.BOLD,
                         ),
@@ -579,9 +1014,9 @@ class CloakTextApp:
                 spacing=12,
             ),
             actions=[
-                ft.TextButton(content="Cancelar", on_click=lambda _: self.page.pop_dialog()),
+                ft.TextButton(content=tr("common.cancel"), on_click=lambda _: self.page.pop_dialog()),
                 ft.Button(
-                    content="Preparar idioma",
+                    content=tr("btn.prepare_language"),
                     icon=ft.Icons.DOWNLOAD_OUTLINED,
                     data=idioma,
                     on_click=self._on_instalar_idioma,
@@ -594,20 +1029,17 @@ class CloakTextApp:
     async def _on_instalar_idioma(self, event) -> None:
         idioma = event.control.data
         self.page.pop_dialog()
-        nombre = NOMBRES_IDIOMA.get(idioma, idioma)
+        nombre = nombre_idioma(idioma)
         self._poner_cargando(True)
-        self.txt_estado_proceso.value = f"Descargando el paquete de {nombre}…"
+        self.txt_estado_proceso.value = tr("model.downloading", name=nombre)
         self.page.update()
         try:
             await asyncio.to_thread(self.motor.instalar_modelo, idioma)
             self.txt_estado_proceso.value = ""
-            self._snack(f"{nombre} está listo. Ya puedes proteger el texto sin conexión.")
+            self._snack(tr("model.installed", name=nombre))
         except Exception:
             logger.exception("No se pudo instalar el paquete de idioma %s", idioma)
-            self._snack(
-                "No se pudo instalar el paquete de idioma. "
-                "Comprueba la conexión e inténtalo de nuevo."
-            )
+            self._snack(tr("model.install_failed"))
         finally:
             self._poner_cargando(False)
             self._refrescar_estado_modelo()
@@ -616,31 +1048,36 @@ class CloakTextApp:
     async def _on_copiar_resultado(self, _event) -> None:
         if self.txt_resultado.value:
             await self.clipboard.set(self.txt_resultado.value)
-            self._snack("Texto protegido copiado.")
+            self._snack(tr("msg.copied"))
 
     async def _on_guardar_diccionario(self, _event) -> None:
         try:
-            mapa = await asyncio.to_thread(load_key)
+            mapa = await asyncio.to_thread(self._cargar_clave)
             self.motor.validar_mapa(mapa)
+        except KeyEncryptedError:
+            self._mostrar_desbloqueo()
+            return
         except (OSError, ValueError) as exc:
-            self._snack(f"No se puede exportar la clave predeterminada: {exc}")
+            self._snack(tr("msg.export_failed", error=exc))
             return
 
-        nombre = f"cloaktext-clave-{datetime.now():%Y%m%d-%H%M%S}.json"
-        contenido = (json.dumps(mapa, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        nombre = f"cloaktext-key-{datetime.now():%Y%m%d-%H%M%S}.json"
+        # Si la clave está cifrada, la copia exportada también lo está.
+        carga = encrypt_key(mapa, self._password) if self._password else mapa
+        contenido = (json.dumps(carga, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         ruta = await ft.FilePicker().save_file(
-            dialog_title="Exportar clave de restauración",
+            dialog_title=tr("picker.export_title"),
             file_name=nombre,
             file_type=ft.FilePickerFileType.CUSTOM,
             allowed_extensions=["json"],
             src_bytes=contenido,
         )
         if ruta or self.page.web:
-            self._snack("Copia JSON exportada.")
+            self._snack(tr("msg.export_done"))
 
     async def _on_cargar_diccionario(self, _event) -> None:
         archivos = await ft.FilePicker().pick_files(
-            dialog_title="Abrir clave de restauración",
+            dialog_title=tr("picker.open_title"),
             allow_multiple=False,
             with_data=True,
             file_type=ft.FilePickerFileType.CUSTOM,
@@ -651,22 +1088,54 @@ class CloakTextApp:
         archivo = archivos[0]
         datos = archivo.bytes or b""
         if len(datos) > MAX_DICCIONARIO_BYTES:
-            self._snack("La clave supera el límite de 10 MB.")
+            self._snack(tr("msg.key_too_big"))
             return
         try:
             bruto = datos.decode("utf-8-sig")
-            mapa = json.loads(bruto)
-            self.motor.validar_mapa(mapa)
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-            self._snack("El archivo no contiene una clave válida de CloakText.")
+            contenido = json.loads(bruto)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._snack(tr("msg.custom_invalid"))
             return
 
+        nombre = archivo.name or tr("restore.custom_fallback_name")
+        if is_encrypted_envelope(contenido):
+            self._pedir_contrasena_clave_personalizada(contenido, nombre)
+            return
+        try:
+            self.motor.validar_mapa(contenido)
+        except ValueError:
+            self._snack(tr("msg.custom_invalid"))
+            return
+        self._usar_clave_personalizada(contenido, nombre)
+
+    def _pedir_contrasena_clave_personalizada(self, envoltorio: dict, nombre: str) -> None:
+        async def descifrar(password: str) -> str | None:
+            try:
+                mapa = await asyncio.to_thread(decrypt_key, envoltorio, password)
+                self.motor.validar_mapa(mapa)
+            except WrongPasswordError:
+                return tr("pw.error_wrong")
+            except ValueError as exc:
+                return str(exc)
+            self._usar_clave_personalizada(mapa, nombre)
+            return None
+
+        self._dialogo_contrasena(
+            tr("pw.unlock_title"),
+            tr("pw.unlock_body", name=nombre),
+            tr("pw.unlock_btn"),
+            descifrar,
+        )
+
+    def _usar_clave_personalizada(self, mapa: dict[str, str], nombre: str) -> None:
         self.mapa_restauracion_personalizado = mapa
-        self.nombre_clave_personalizada = archivo.name or "JSON personalizado"
+        self.nombre_clave_personalizada = nombre
         self._actualizar_texto_clave_activa()
         self.btn_usar_predeterminado.visible = True
         self.page.update()
-        self._snack(f"JSON personalizado listo: {len(mapa)} elementos.")
+        self._snack(tr("msg.custom_ready", count=len(mapa)))
+
+    # ------------------------------------------------------------- procesar
 
     async def _on_ejecutar(self, _event) -> None:
         if self._busy:
@@ -674,7 +1143,7 @@ class CloakTextApp:
 
         texto = self.txt_entrada.value or ""
         if not texto.strip():
-            self._snack("Introduce un texto antes de procesarlo.")
+            self._snack(tr("msg.enter_text"))
             return
 
         idioma = self.dd_idioma.value or "es"
@@ -685,6 +1154,8 @@ class CloakTextApp:
                 await self._ejecutar_anonimizar(texto, idioma)
             else:
                 await self._ejecutar_desanonimizar(texto)
+        except KeyEncryptedError:
+            self._mostrar_desbloqueo()
         except ModeloNoDisponibleError as exc:
             logger.info("Paquete de idioma no instalado: %s", exc.modelo)
             self._mostrar_instalacion_idioma(exc.idioma)
@@ -692,17 +1163,17 @@ class CloakTextApp:
             self._snack(str(exc))
         except Exception:
             logger.exception("Error inesperado durante el procesamiento")
-            self._snack("No se ha podido procesar el texto. Revisa los datos e inténtalo de nuevo.")
+            self._snack(tr("msg.process_failed"))
         finally:
             self._poner_cargando(False)
             self._refrescar_estado_modelo()
             self.page.update()
 
     async def _ejecutar_anonimizar(self, texto: str, idioma: str) -> None:
-        self.txt_estado_proceso.value = "Analizando texto…"
+        self.txt_estado_proceso.value = tr("status.analysing")
         self.page.update()
 
-        mapa = await asyncio.to_thread(load_key)
+        mapa = await asyncio.to_thread(self._cargar_clave)
         self.motor.validar_mapa(mapa)
 
         resultado = await asyncio.to_thread(
@@ -711,11 +1182,14 @@ class CloakTextApp:
             mapa,
             None,
             idioma,
+            self._terminos_manuales(),
         )
-        await asyncio.to_thread(save_key_atomic, mapa)
+        await asyncio.to_thread(self._guardar_clave, mapa)
+        await asyncio.to_thread(self._registrar_fechas, mapa)
 
         self.mapa_actual = mapa
         self.txt_resultado.value = resultado
+        self._mostrar_resultado(resultado)
         self.aviso_mapa.visible = True
         self.btn_copiar_resultado.disabled = not bool(resultado)
 
@@ -723,50 +1197,81 @@ class CloakTextApp:
         conteo = Counter(match.group(1) for match in tokens_actuales)
 
         if not tokens_actuales:
-            self.txt_resumen.value = "No se han detectado datos sensibles automáticamente. Revisa el texto antes de compartirlo."
+            self.txt_resumen.value = tr("summary.nothing_found")
         else:
             detalle = " · ".join(f"{tipo}: {cantidad}" for tipo, cantidad in sorted(conteo.items()))
-            self.txt_resumen.value = f"{len(tokens_actuales)} datos protegidos · {detalle}"
+            self.txt_resumen.value = tr("summary.found", count=len(tokens_actuales), detail=detalle)
 
         self.txt_estado_proceso.value = ""
+        uno = len(tokens_actuales) == 1
         self._snack(
-            f"Proceso terminado: {len(tokens_actuales)} dato{'s' if len(tokens_actuales) != 1 else ''} protegido"
-            f"{'s' if len(tokens_actuales) != 1 else ''}. cloaktext.json actualizado."
+            tr(
+                "msg.done",
+                count=len(tokens_actuales),
+                noun=tr("msg.noun_one" if uno else "msg.noun_many"),
+                verb=tr("msg.verb_one" if uno else "msg.verb_many"),
+            )
         )
+
+    @staticmethod
+    def _registrar_fechas(mapa: dict[str, str]) -> None:
+        """Anota la fecha de alta de los marcadores nuevos (no crítico)."""
+        try:
+            save_dates(stamp_tokens(mapa, load_dates()))
+        except OSError:
+            logger.warning("No se pudieron guardar las fechas de las entradas")
 
     async def _ejecutar_desanonimizar(self, texto: str) -> None:
         if self.mapa_restauracion_personalizado is not None:
             mapa = self.mapa_restauracion_personalizado
         else:
-            mapa = await asyncio.to_thread(load_key)
+            mapa = await asyncio.to_thread(self._cargar_clave)
             self.motor.validar_mapa(mapa)
 
         if not mapa:
-            raise ValueError(
-                "cloaktext.json está vacío. Protege un texto primero o usa otro JSON."
-            )
+            raise ValueError(tr("msg.empty_key"))
 
-        self.txt_estado_proceso.value = "Restaurando texto…"
+        self.txt_estado_proceso.value = tr("status.restoring")
         self.page.update()
         resultado = await asyncio.to_thread(self.motor.desanonimizar, texto, mapa)
 
         self.txt_resultado.value = resultado
+        self._mostrar_resultado(resultado)
         origen = (
             self.nombre_clave_personalizada
             if self.mapa_restauracion_personalizado is not None
             else "cloaktext.json"
         )
-        self.txt_resumen.value = f"Texto restaurado usando {origen}."
+        self.txt_resumen.value = tr("summary.restored", source=origen)
         self.aviso_mapa.visible = False
         self.btn_copiar_resultado.disabled = not bool(resultado)
         self.txt_estado_proceso.value = ""
-        self._snack("Texto restaurado.")
+        self._snack(tr("msg.restored"))
+
+    # ------------------------------------------------------------ resultado
+
+    def _mostrar_resultado(self, resultado: str) -> None:
+        """Muestra el resultado, con los marcadores resaltados si procede."""
+        en_anon = self.modo == "anon"
+        self.texto_resaltado.spans = spans_resaltados(resultado) if en_anon else []
+        self.sw_resaltar.visible = en_anon and bool(resultado)
+        self._aplicar_resaltado()
+
+    def _aplicar_resaltado(self) -> None:
+        resaltar = self.sw_resaltar.visible and bool(self.sw_resaltar.value)
+        self.vista_resaltada.visible = resaltar
+        self.txt_resultado.visible = not resaltar
+
+    def _on_alternar_resaltado(self, _event) -> None:
+        self._aplicar_resaltado()
+        self.page.update()
 
     def _on_limpiar_texto(self, _event) -> None:
         if self._busy:
             return
         self.txt_entrada.value = ""
-        self.txt_contador.value = "0 caracteres"
+        self.txt_terminos.value = ""
+        self._actualizar_contador()
         self._limpiar_resultado()
         self.page.update()
 
@@ -776,21 +1281,15 @@ class CloakTextApp:
         dialogo = ft.AlertDialog(
             modal=True,
             icon=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.ERROR),
-            title=ft.Text("Limpiar cloaktext.json"),
-            content=ft.Text(
-                "Esto vaciará la clave predeterminada cloaktext.json y eliminará "
-                "todas las asociaciones guardadas. Los textos protegidos con esas "
-                "asociaciones dejarán de poder restaurarse con el JSON predeterminado. "
-                "No se borrarán las copias JSON que hayas exportado ni los archivos "
-                "personalizados que tengas en otras ubicaciones."
-            ),
+            title=ft.Text(tr("dialog.clear_json_title")),
+            content=ft.Text(tr("dialog.clear_json_body")),
             actions=[
                 ft.TextButton(
-                    content="Cancelar",
+                    content=tr("common.cancel"),
                     on_click=lambda _: self.page.pop_dialog(),
                 ),
                 ft.Button(
-                    content="Limpiar JSON",
+                    content=tr("btn.clear_json"),
                     icon=ft.Icons.DELETE_FOREVER_OUTLINED,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.ERROR,
@@ -805,23 +1304,26 @@ class CloakTextApp:
 
     def _confirmar_limpiar_json(self, _event) -> None:
         try:
-            save_key_atomic({})
+            self._guardar_clave({})
+            save_dates({})
         except OSError:
             logger.exception("No se pudo limpiar cloaktext.json")
-            self._snack("No se pudo limpiar cloaktext.json.")
+            self._snack(tr("msg.json_clear_failed"))
             return
         self.mapa_actual = {}
         self.page.pop_dialog()
-        self._snack(
-            "cloaktext.json se ha vaciado. Las copias exportadas no se han modificado."
-        )
+        self._snack(tr("msg.json_cleared"))
 
     def _limpiar_resultado(self) -> None:
         self.mapa_actual = {}
         self.txt_resultado.value = ""
+        self.texto_resaltado.spans = []
+        self.vista_resaltada.visible = False
+        self.txt_resultado.visible = True
+        self.sw_resaltar.visible = False
         self.aviso_mapa.visible = False
         self.btn_copiar_resultado.disabled = True
-        self.txt_resumen.value = "Todavía no se ha procesado ningún texto."
+        self.txt_resumen.value = tr("summary.none_yet")
         self.txt_estado_proceso.value = ""
 
     def _poner_cargando(self, activo: bool) -> None:
@@ -837,22 +1339,24 @@ class CloakTextApp:
         self.btn_cargar_diccionario.disabled = activo
         self.btn_usar_predeterminado.disabled = activo
         self.btn_exportar_diccionario.disabled = activo
+        self.btn_terminos.disabled = activo
+        self.menu_clave.disabled = activo
         self.page.update()
 
     def _refrescar_estado_modelo(self) -> None:
         seleccionado = self.dd_idioma.value or "es"
-        nombre = NOMBRES_IDIOMA.get(seleccionado, seleccionado)
+        nombre = nombre_idioma(seleccionado)
         disponible = self.motor.modelo_disponible(seleccionado)
 
         if disponible:
-            self.txt_estado_modelo.value = f"{nombre} listo"
+            self.txt_estado_modelo.value = tr("model.ready", name=nombre)
             self.txt_estado_modelo.color = ft.Colors.ON_SURFACE
             self.btn_modelo.visible = False
         else:
-            self.txt_estado_modelo.value = f"Prepara {nombre} para empezar"
+            self.txt_estado_modelo.value = tr("model.prepare_to_start", name=nombre)
             self.txt_estado_modelo.color = ft.Colors.OUTLINE
             self.btn_modelo.visible = True
-            self.btn_modelo.content = "Preparar idioma"
+            self.btn_modelo.content = tr("btn.prepare_language")
             self.btn_modelo.icon = ft.Icons.DOWNLOAD_OUTLINED
             self.btn_modelo.disabled = self._busy
 

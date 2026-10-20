@@ -164,3 +164,84 @@ def test_descargar_modelo_fuerza_recoleccion_de_memoria(monkeypatch):
     assert gestor._nlp is None
     assert gestor._idioma is None
     assert llamadas == [True]
+
+
+def test_iban_seguido_de_texto_se_protege_sin_consumir_palabras(motor):
+    original = "Transferir a ES91 2100 0418 4502 0005 1332 antes del viernes"
+    mapa = {}
+    resultado = motor.anonimizar(original, mapa, idioma="es")
+
+    assert "2100" not in resultado
+    assert resultado.endswith("antes del viernes")
+    assert list(mapa.values()) == ["ES91 2100 0418 4502 0005 1332"]
+
+
+def test_iban_no_consume_palabra_final_aunque_validara_por_azar(motor):
+    mapa = {}
+    resultado = motor.anonimizar("Cuenta ES91 2100 0418 4502 0005 1332 gracias", mapa, idioma="es")
+
+    assert resultado.endswith("gracias")
+    assert list(mapa.values()) == ["ES91 2100 0418 4502 0005 1332"]
+
+
+def test_iban_con_longitud_incorrecta_para_su_pais_no_se_acepta():
+    assert not _iban_valido("ES91 2100 0418 4502 0005 13320")
+    assert _iban_valido("DE89 3704 0044 0532 0130 00")
+    assert _iban_valido("GB82 WEST 1234 5698 7654 32")
+
+
+@pytest.mark.parametrize("telefono", ["612345678", "612 345 678", "+34 612 345 678", "91 123 45 67", "912 345 678"])
+def test_telefonos_espanoles_moviles_y_fijos(motor, telefono):
+    mapa = {}
+    resultado = motor.anonimizar(f"Llama al {telefono} ya", mapa, idioma="es")
+
+    assert resultado == "Llama al [TELEFONO_1000] ya"
+    assert mapa["[TELEFONO_1000]"] == telefono
+
+
+def test_dni_con_letra_incorrecta_tambien_se_protege(motor):
+    # Decisión de privacidad: ante la duda, proteger. Un DNI mal tecleado sigue siendo un dato personal.
+    mapa = {}
+    resultado = motor.anonimizar("DNI 12345678A", mapa, idioma="es")
+    assert resultado == "DNI [NIF_1000]"
+
+
+def test_pasaporte_solo_en_mayusculas(motor):
+    mapa = {}
+    resultado = motor.anonimizar("ref abc123456 y ABC123456", mapa, idioma="es")
+    assert resultado == "ref abc123456 y [PASAPORTE_1000]"
+
+
+def test_nif_portugues_valida_digito_de_control(motor):
+    mapa = {}
+    resultado = motor.anonimizar("NIF 123456789 pedido 123456780", mapa, idioma="pt")
+    assert resultado == "NIF [NIF_PT_1000] pedido 123456780"
+
+
+def test_terminos_manuales_se_protegen_y_restauran(motor):
+    mapa = {}
+    original = "Proyecto Atlas con Ana María Pérez. Ana María vuelve; atlas sigue."
+    resultado = motor.anonimizar(original, mapa, idioma="es", terminos=["Atlas", "Ana María", "  ", "atlas"])
+
+    assert "Atlas" not in resultado and "Ana María" not in resultado
+    assert resultado.count("[MANUAL_") == 4
+    assert motor.desanonimizar(resultado, mapa) == original
+
+
+def test_terminos_manuales_respetan_limites_de_palabra(motor):
+    mapa = {}
+    resultado = motor.anonimizar("Ana y Anabel", mapa, idioma="es", terminos=["Ana"])
+    assert resultado == "[MANUAL_1000] y Anabel"
+
+
+def test_terminos_manuales_con_caracteres_especiales(motor):
+    mapa = {}
+    resultado = motor.anonimizar("clave (a+b)* aquí", mapa, idioma="es", terminos=["(a+b)*"])
+    assert "a+b" not in resultado
+
+
+def test_normalizar_terminos_limita_cantidad_y_longitud():
+    muchos = [f"t{i}" for i in range(1000)] + ["x" * 500]
+    resultado = MotorLocal.normalizar_terminos(muchos)
+    assert len(resultado) == 500
+    assert all(len(t) <= 200 for t in resultado)

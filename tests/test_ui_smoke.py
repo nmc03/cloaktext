@@ -130,7 +130,7 @@ def test_clave_predeterminada_se_guarda_y_reutiliza(tmp_path, monkeypatch):
             assert isinstance(mapa, dict)
 
         @staticmethod
-        def anonimizar(texto, mapa, filtros, idioma):
+        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
             mapa["[PERSONA_1000]"] = "Ana"
             return texto.replace("Ana", "[PERSONA_1000]")
 
@@ -187,3 +187,161 @@ def test_botones_no_muestran_tooltips(tmp_path, monkeypatch):
         app.btn_exportar_diccionario,
     ]
     assert all(getattr(boton, "tooltip", None) in (None, "") for boton in botones)
+
+
+# --- funciones nuevas: resaltado, palabras manuales, contraseña, idioma ---
+
+import re  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import pytest  # noqa: E402
+
+import i18n  # noqa: E402
+import key_store  # noqa: E402
+from main import spans_resaltados  # noqa: E402
+
+
+def test_spans_resaltados_marcan_solo_los_marcadores():
+    spans = spans_resaltados("Hola [PERSONA_1000], mira [EMAIL_1001].")
+    textos = [span.text for span in spans]
+
+    assert "".join(textos) == "Hola [PERSONA_1000], mira [EMAIL_1001]."
+    estilados = [span.text for span in spans if span.style is not None]
+    assert estilados == ["[PERSONA_1000]", "[EMAIL_1001]"]
+
+
+def test_resultado_se_resalta_y_se_puede_alternar(tmp_path, monkeypatch):
+    page, app = _crear_app(tmp_path, monkeypatch)
+    app._mostrar_resultado("Hola [PERSONA_1000]")
+
+    assert app.sw_resaltar.visible and app.vista_resaltada.visible
+    assert not app.txt_resultado.visible
+
+    app.sw_resaltar.value = False
+    app._on_alternar_resaltado(None)
+
+    assert not app.vista_resaltada.visible and app.txt_resultado.visible
+
+
+def test_palabras_adicionales_llegan_al_motor(tmp_path, monkeypatch):
+    page, app = _crear_app(tmp_path, monkeypatch)
+    recibido = {}
+
+    class FakeMotor:
+        @staticmethod
+        def validar_mapa(mapa):
+            pass
+
+        @staticmethod
+        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
+            recibido["terminos"] = terminos
+            return texto
+
+    app.motor = FakeMotor()
+    app.txt_terminos.value = "Proyecto Atlas\nAna María"
+    asyncio.run(app._ejecutar_anonimizar("texto", "es"))
+
+    assert recibido["terminos"] == ["Proyecto Atlas", "Ana María"]
+
+
+def test_clave_cifrada_pide_contrasena_al_abrir(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLOAKTEXT_APP_DIR", str(tmp_path))
+    save_key_atomic({"[PERSONA_1000]": "Ana"}, password="correct horse")
+
+    page = FakePage()
+    app = CloakTextApp(page)
+
+    assert app._clave_bloqueada
+    assert isinstance(page.dialogs[-1], ft.AlertDialog)
+    with pytest.raises(key_store.KeyEncryptedError):
+        asyncio.run(app._ejecutar_anonimizar("Hola Ana", "es"))
+    # el archivo no se ha tocado
+    assert key_store.is_encrypted()
+
+
+def test_con_contrasena_la_clave_se_guarda_cifrada(tmp_path, monkeypatch):
+    page, app = _crear_app(tmp_path, monkeypatch)
+    save_key_atomic({}, password="correct horse")
+    app._password = "correct horse"
+
+    class FakeMotor:
+        @staticmethod
+        def validar_mapa(mapa):
+            pass
+
+        @staticmethod
+        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
+            mapa["[PERSONA_1000]"] = "Ana"
+            return texto.replace("Ana", "[PERSONA_1000]")
+
+    app.motor = FakeMotor()
+    asyncio.run(app._ejecutar_anonimizar("Hola Ana", "es"))
+
+    assert "Ana" not in (tmp_path / "cloaktext.json").read_text(encoding="utf-8")
+    assert load_key(password="correct horse") == {"[PERSONA_1000]": "Ana"}
+
+
+def test_fechas_de_alta_se_registran_al_proteger(tmp_path, monkeypatch):
+    page, app = _crear_app(tmp_path, monkeypatch)
+
+    class FakeMotor:
+        @staticmethod
+        def validar_mapa(mapa):
+            pass
+
+        @staticmethod
+        def anonimizar(texto, mapa, filtros, idioma, terminos=None):
+            mapa["[EMAIL_1000]"] = "a@b.co"
+            return "[EMAIL_1000]"
+
+    app.motor = FakeMotor()
+    asyncio.run(app._ejecutar_anonimizar("a@b.co", "es"))
+
+    assert list(key_store.load_dates()) == ["[EMAIL_1000]"]
+
+
+def test_cambiar_idioma_de_la_interfaz_reconstruye_y_conserva_el_texto(tmp_path, monkeypatch):
+    page, app = _crear_app(tmp_path, monkeypatch)
+    app.txt_entrada.value = "mi texto"
+
+    app._on_cambiar_idioma_ui(SimpleNamespace(control=SimpleNamespace(data="en")))
+
+    assert app.btn_ejecutar.content == "Protect data"
+    assert app.txt_entrada.value == "mi texto"
+    assert key_store.load_settings()["ui_language"] == "en"
+    assert i18n.get_language() == "en"
+
+
+_USOS_TR = re.compile(r"""\btr\(\s*["']([a-z_]+\.[a-z_0-9]+)["']""")
+_USOS_TR_COND = re.compile(r"""["'](msg\.(?:noun|verb)_(?:one|many))["']""")
+
+
+def _claves_usadas() -> set[str]:
+    raiz = Path(__file__).resolve().parent.parent
+    claves: set[str] = set()
+    for archivo in ("main.py", "key_store.py", "motor_local.py"):
+        codigo = (raiz / archivo).read_text(encoding="utf-8")
+        claves |= set(_USOS_TR.findall(codigo)) | set(_USOS_TR_COND.findall(codigo))
+    return claves
+
+
+def test_todas_las_cadenas_existen_en_ambos_idiomas():
+    es, en = i18n.STRINGS["es"], i18n.STRINGS["en"]
+    assert set(es) == set(en)
+    faltan = {c for c in _claves_usadas() if c not in es}
+    assert not faltan, f"claves sin traducción: {sorted(faltan)}"
+    # `lang.<código>` se construye dinámicamente
+    assert all(f"lang.{c}" in es for c in ("es", "en", "fr", "de", "it", "pt", "ca"))
+
+
+def test_las_traducciones_comparten_marcadores_de_formato():
+    campo = re.compile(r"\{(\w+)[^}]*\}")
+    for clave, texto_es in i18n.STRINGS["es"].items():
+        assert set(campo.findall(texto_es)) == set(campo.findall(i18n.STRINGS["en"][clave])), clave
+
+
+def test_idioma_desconocido_cae_en_ingles_y_clave_ausente_se_devuelve():
+    i18n.set_language("xx")
+    assert i18n.get_language() == "en"
+    assert i18n.tr("clave.inexistente") == "clave.inexistente"

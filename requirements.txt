@@ -1,2 +1,3 @@
 flet[all]==1.0.3
 spacy==3.8.16
+cryptography==50.0.2

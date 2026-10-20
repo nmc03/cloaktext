@@ -14,9 +14,11 @@ import logging
 import re
 import threading
 import time
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 import spacy
+
+from i18n import tr
 
 from language_models import (
     IDIOMAS_SOPORTADOS,
@@ -29,6 +31,8 @@ from language_models import (
 logger = logging.getLogger(__name__)
 
 MAX_NLP_CHARS = 200_000
+MAX_TERMINOS_MANUALES = 500
+MAX_LONGITUD_TERMINO = 200
 MAX_MAPA_ENTRADAS = 100_000
 TOKEN_RE = re.compile(r"\[[A-Z][A-Z0-9_]*_(\d+)\]")
 
@@ -42,7 +46,7 @@ PATRONES_POR_IDIOMA = {
     "es": {
         "NIF": r"\b\d{8}[A-HJ-NP-TV-Z]\b",
         "NIE": r"\b[XYZ]\d{7}[A-Z]\b",
-        "TELEFONO": r"(?<!\d)(?:\+34[\s\-]?)?[6789]\d{2}[\s\-]?\d{3}[\s\-]?\d{3}(?!\d)",
+        "TELEFONO": r"(?<!\d)(?:\+34[\s\-]?)?(?:[6789]\d{2}[\s\-]?\d{3}[\s\-]?\d{3}|[6789]\d[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})(?!\d)",
         "PASAPORTE": r"\b[A-Z]{3}\d{6}\b",
         "FECHA_NAC": r"\b(?:0?[1-9]|[12]\d|3[01])[/\-.](?:0?[1-9]|1[0-2])[/\-.](?:19|20)\d{2}\b",
     },
@@ -80,10 +84,28 @@ PATRONES_POR_IDIOMA = {
     "ca": {
         "NIF": r"\b\d{8}[A-HJ-NP-TV-Z]\b",
         "NIE": r"\b[XYZ]\d{7}[A-Z]\b",
-        "TELEFONO": r"(?<!\d)(?:\+34[\s\-]?)?[6789]\d{2}[\s\-]?\d{3}[\s\-]?\d{3}(?!\d)",
+        "TELEFONO": r"(?<!\d)(?:\+34[\s\-]?)?(?:[6789]\d{2}[\s\-]?\d{3}[\s\-]?\d{3}|[6789]\d[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2})(?!\d)",
         "FECHA_NAC": r"\b(?:0?[1-9]|[12]\d|3[01])[/\-.](?:0?[1-9]|1[0-2])[/\-.](?:19|20)\d{2}\b",
     },
 }
+
+# Longitud oficial del IBAN por país (registro SWIFT). Si el país se conoce, la
+# longitud debe coincidir exactamente; si no, se acepta 15-34 caracteres.
+LONGITUD_IBAN_POR_PAIS = {
+    "AD": 24, "AT": 20, "BE": 16, "BG": 22, "CH": 21, "CY": 28, "CZ": 24,
+    "DE": 22, "DK": 18, "EE": 20, "ES": 24, "FI": 18, "FR": 27, "GB": 22,
+    "GR": 27, "HR": 21, "HU": 28, "IE": 22, "IS": 26, "IT": 27, "LI": 21,
+    "LT": 20, "LU": 20, "LV": 21, "MC": 27, "MT": 31, "NL": 18, "NO": 15,
+    "PL": 28, "PT": 25, "RO": 24, "SE": 24, "SI": 19, "SK": 24, "SM": 27,
+    "VA": 22,
+}
+
+# Tipos cuyo patrón mezcla letras y dígitos y produce demasiados falsos positivos
+# si se acepta minúsculas (p. ej. "abc123456"). El resto ignora mayúsculas.
+TIPOS_SOLO_MAYUSCULAS = frozenset({"PASAPORTE", "NINO"})
+
+# Tipos que además de coincidir con el patrón deben pasar una validación.
+VALIDADORES: dict[str, "Callable[[str], bool]"] = {}
 
 ETIQUETAS_SPACY = {"PER": "PERSONA", "PERSON": "PERSONA", "LOC": "LUGAR", "GPE": "LUGAR", "ORG": "ORG"}
 
@@ -249,6 +271,7 @@ class MotorLocal:
         mapa: dict[str, str],
         filtros: Optional[set[str]] = None,
         idioma: str = "es",
+        terminos: Optional[Iterable[str]] = None,
     ) -> str:
         if not texto or not texto.strip():
             return texto
@@ -257,7 +280,7 @@ class MotorLocal:
 
         self.validar_mapa(mapa)
         activos = filtros if filtros is not None else self._todos_tipos(idioma)
-        spans = self._recoger_spans(texto, activos, idioma)
+        spans = self._recoger_spans(texto, activos, idioma, terminos)
         siguiente = self._siguiente_secuencia(texto, mapa)
 
         valor_a_token = {valor: token for token, valor in mapa.items()}
@@ -290,13 +313,14 @@ class MotorLocal:
         texto: str,
         filtros: Optional[set[str]] = None,
         idioma: str = "es",
+        terminos: Optional[Iterable[str]] = None,
     ) -> list[tuple[int, int, str, str]]:
         if not texto or not texto.strip():
             return []
         if idioma not in IDIOMAS_SOPORTADOS:
             raise ValueError(f"Idioma no soportado: {idioma}")
         activos = filtros if filtros is not None else self._todos_tipos(idioma)
-        return self._recoger_spans(texto, activos, idioma)
+        return self._recoger_spans(texto, activos, idioma, terminos)
 
     def todos_tipos(self, idioma: str) -> set[str]:
         if idioma not in IDIOMAS_SOPORTADOS:
@@ -304,37 +328,69 @@ class MotorLocal:
         return self._todos_tipos(idioma)
 
     @staticmethod
+    def normalizar_terminos(terminos: Optional[Iterable[str]]) -> list[str]:
+        """Limpia la lista de palabras manuales: sin vacíos ni duplicados, acotada."""
+        resultado: list[str] = []
+        usados: set[str] = set()
+        for termino in terminos or ():
+            limpio = " ".join(str(termino).split())
+            clave = limpio.casefold()
+            if limpio and len(limpio) <= MAX_LONGITUD_TERMINO and clave not in usados:
+                usados.add(clave)
+                resultado.append(limpio)
+            if len(resultado) >= MAX_TERMINOS_MANUALES:
+                break
+        # Los términos largos primero: "Ana María" gana a "Ana".
+        return sorted(resultado, key=len, reverse=True)
+
+    @staticmethod
     def validar_mapa(mapa: object) -> None:
         if not isinstance(mapa, dict):
-            raise ValueError("El diccionario debe ser un objeto JSON.")
+            raise ValueError(tr("err.map_not_object"))
         if len(mapa) > MAX_MAPA_ENTRADAS:
-            raise ValueError("El diccionario es demasiado grande.")
+            raise ValueError(tr("err.map_too_big"))
         for token, valor in mapa.items():
             if not isinstance(token, str) or not TOKEN_RE.fullmatch(token):
-                raise ValueError(f"Token de diccionario no válido: {token!r}")
+                raise ValueError(tr("err.map_bad_token", token=repr(token)))
             if not isinstance(valor, str):
-                raise ValueError(f"El valor de {token!r} debe ser texto.")
+                raise ValueError(tr("err.map_bad_value", token=repr(token)))
 
     def _recoger_spans(
         self,
         texto: str,
         activos: set[str],
         idioma: str,
+        terminos: Optional[Iterable[str]] = None,
     ) -> list[tuple[int, int, str, str]]:
         # (inicio, fin, tipo, valor, prioridad). Menor prioridad gana.
         candidatos: list[tuple[int, int, str, str, int]] = []
+
+        for termino in self.normalizar_terminos(terminos):
+            patron_termino = r"(?<!\w)" + re.escape(termino) + r"(?!\w)"
+            for coincidencia in re.finditer(patron_termino, texto, re.IGNORECASE):
+                candidatos.append(
+                    (coincidencia.start(), coincidencia.end(), "MANUAL", coincidencia.group(), -1)
+                )
 
         patrones = {**PATRONES_COMUNES, **PATRONES_POR_IDIOMA.get(idioma, {})}
         for tipo, patron in patrones.items():
             if tipo not in activos:
                 continue
-            for coincidencia in re.finditer(patron, texto, re.IGNORECASE):
+            flags = 0 if tipo in TIPOS_SOLO_MAYUSCULAS else re.IGNORECASE
+            validador = VALIDADORES.get(tipo)
+            for coincidencia in re.finditer(patron, texto, flags):
                 valor = coincidencia.group()
-                if tipo == "IBAN" and not _iban_valido(valor):
+                if validador is not None and not validador(valor):
                     continue
-                candidatos.append(
-                    (coincidencia.start(), coincidencia.end(), tipo, valor, 0)
-                )
+                fin = coincidencia.end()
+                if tipo == "IBAN":
+                    # El patrón es voraz y puede arrastrar palabras siguientes.
+                    longitud = _longitud_iban_valido(valor)
+                    if longitud is None:
+                        continue
+                    valor = valor[:longitud]
+                    fin = coincidencia.start() + longitud
+                candidatos.append((coincidencia.start(), fin, tipo, valor, 0))
 
         with self._gestor.usar(idioma) as nlp:
             for offset, bloque in _trocear_texto(texto, MAX_NLP_CHARS):
@@ -414,9 +470,45 @@ def _seleccionar_no_solapados(
     return seleccionados
 
 
+def _longitud_iban_valido(candidato: str) -> Optional[int]:
+    """Devuelve la longitud del IBAN válido más largo al inicio de `candidato`.
+
+    Solo corta en límites de palabra (espacio, guion o final), de modo que un
+    IBAN seguido de texto se protege completo y sin consumir las palabras
+    siguientes. Devuelve None si no hay ningún prefijo válido.
+    """
+    for fin in range(len(candidato), 0, -1):
+        if fin < len(candidato) and candidato[fin] not in " 	-":
+            continue
+        if candidato[fin - 1] in " 	-":
+            continue
+        if _iban_valido(candidato[:fin]):
+            return fin
+    return None
+
+
+def _nif_pt_valido(valor: str) -> bool:
+    """NIF portugués: 9 dígitos, primer dígito válido y dígito de control mod 11."""
+    digitos = re.sub(r"\D", "", valor)
+    if len(digitos) != 9 or digitos[0] not in "1235689":
+        return False
+    suma = sum(int(d) * (9 - i) for i, d in enumerate(digitos[:8]))
+    control = 11 - suma % 11
+    if control >= 10:
+        control = 0
+    return control == int(digitos[8])
+
+
+VALIDADORES["NIF_PT"] = _nif_pt_valido
+
+
 def _iban_valido(valor: str) -> bool:
     normalizado = re.sub(r"[\s-]", "", valor).upper()
-    if not 15 <= len(normalizado) <= 34:
+    esperado = LONGITUD_IBAN_POR_PAIS.get(normalizado[:2])
+    if esperado is not None:
+        if len(normalizado) != esperado:
+            return False
+    elif not 15 <= len(normalizado) <= 34:
         return False
     if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]+", normalizado):
         return False

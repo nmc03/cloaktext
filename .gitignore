@@ -17,3 +17,6 @@ Thumbs.db
 
 # Clave local predeterminada (contiene datos sensibles)
 cloaktext.json
+cloaktext.dates.json
+cloaktext.settings.json
+models/

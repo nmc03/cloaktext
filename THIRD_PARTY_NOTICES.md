@@ -2,14 +2,15 @@
 
 CloakText original source code is licensed under the MIT License.
 
-The base Windows distribution contains Flet, spaCy and their runtime dependencies. Language models are **not bundled** in the CloakText ZIP. When the user enables a language for the first time, CloakText can download the corresponding model package directly from the official `explosion/spacy-models` GitHub releases, verifies the pinned SHA-256 and stores the extracted model in the portable `models` directory next to `CloakText.exe`.
+The base Windows distribution contains Flet, spaCy, cryptography and their runtime dependencies. Language models are **not bundled** in the CloakText ZIP. When the user enables a language for the first time, CloakText can download the corresponding model package directly from the official `explosion/spacy-models` GitHub releases, verifies the pinned SHA-256 and stores the extracted model in the portable `models` directory next to `CloakText.exe`.
 
 ## Main bundled dependencies
 
-| Component | Version used by v1.1.0 | License |
+| Component | Version | License |
 | --- | --- | --- |
 | Flet | 1.0.3 | Apache License 2.0 |
 | spaCy | 3.8.16 | MIT |
+| cryptography | 50.0.2 | Apache License 2.0 or BSD 3-Clause (dual) |
 
 Copies of those primary license texts are included in `licenses/`.
 
