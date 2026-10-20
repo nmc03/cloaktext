@@ -7,7 +7,7 @@ rule-based engine, so no model download is needed and no real data is involved.
 
     python scripts/doc_screenshots.py
 
-Output: docs/images/{protect,restore}.png (English) and {protect,restore}.es.png (Spanish)
+Output: docs/images/{protect,restore}.<code>.png for each of the 7 interface languages
 """
 
 from __future__ import annotations
@@ -48,8 +48,38 @@ SAMPLES = {
         "Para dudas escribid a ana.garcia@example.com o llamad al +34 612 345 678.\n"
         "DNI del titular: 12345678Z. Gracias."
     ),
+    "fr": (
+        "Bonjour l'équipe,\n\n"
+        "Merci d'effectuer le virement sur le compte FR14 2004 1010 0505 0001 3M02 606 avant vendredi.\n"
+        "Pour toute question, écrivez à anne.dupont@example.com ou appelez le 06 12 34 56 78.\n"
+        "N° de sécurité sociale du titulaire : 284127512345678. Merci."
+    ),
+    "de": (
+        "Hallo zusammen,\n\n"
+        "bitte überweist den Betrag bis Freitag auf das Konto DE89 3704 0044 0532 0130 00.\n"
+        "Bei Fragen schreibt an anna.schmidt@example.com oder ruft an: 030 12345678.\n"
+        "Steuernummer der Inhaberin: 12/345/67890. Danke."
+    ),
+    "it": (
+        "Ciao a tutti,\n\n"
+        "vi chiedo di effettuare il bonifico sul conto IT60 X054 2811 1010 0000 0123 456 entro venerdì.\n"
+        "Per qualsiasi dubbio scrivete a giulia.rossi@example.com o chiamate il +39 02 1234567.\n"
+        "Codice fiscale dell'intestataria: RSSMRA85T10A562S. Grazie."
+    ),
+    "pt": (
+        "Olá a todos,\n\n"
+        "peço que façam a transferência para a conta PT50 0002 0123 1234 5678 9015 4 até sexta-feira.\n"
+        "Para qualquer dúvida, escrevam para ana.silva@example.com ou liguem para +351 912345678.\n"
+        "NIF da titular: 123456789. Obrigado."
+    ),
+    "ca": (
+        "Hola a tothom,\n\n"
+        "si us plau, feu la transferència al compte ES91 2100 0418 4502 0005 1332 abans de divendres.\n"
+        "Per a qualsevol dubte escriviu a anna.puig@example.com o truqueu al +34 612 345 678.\n"
+        "DNI de la titular: 12345678Z. Gràcies."
+    ),
 }
-SUFFIX = {"en": "", "es": ".es"}
+LANGUAGES = ("en", "es", "fr", "de", "it", "pt", "ca")
 
 
 class _NoNerUse:
@@ -107,7 +137,7 @@ async def _shoot(app: app_module.CloakTextApp, page: ft.Page, language: str) -> 
     page.pop_dialog()  # hide the toast so it does not cover the buttons
     page.update()
     await asyncio.sleep(2.5)
-    await _capture_retrying(f"protect{SUFFIX[language]}.png")
+    await _capture_retrying(f"protect.{language}.png")
 
     protected = app.txt_result.value
     app._switch_mode("restore")
@@ -118,7 +148,7 @@ async def _shoot(app: app_module.CloakTextApp, page: ft.Page, language: str) -> 
     page.pop_dialog()
     page.update()
     await asyncio.sleep(2.5)
-    await _capture_retrying(f"restore{SUFFIX[language]}.png")
+    await _capture_retrying(f"restore.{language}.png")
 
 
 async def _run(page: ft.Page) -> None:
@@ -126,12 +156,12 @@ async def _run(page: ft.Page) -> None:
     page.theme_mode = ft.ThemeMode.LIGHT
     app = app_module.CloakTextApp(page)
     app.engine._manager = _NoNerManager()  # rule-based detection only
-    page.window.width, page.window.height = 1180, 760
+    page.window.width, page.window.height = 1180, 860
     page.window.always_on_top = True  # keep other windows out of the capture
     page.update()
     await asyncio.sleep(1.5)
 
-    for language in ("en", "es"):
+    for language in LANGUAGES:
         app._on_change_ui_language(SimpleNamespace(control=SimpleNamespace(data=language)))
         await asyncio.sleep(1.0)
         await _shoot(app, page, language)

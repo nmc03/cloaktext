@@ -7,13 +7,15 @@ The format follows Keep a Changelog principles and versions use SemVer.
 ### Fixed
 
 - **Privacy:** a valid IBAN followed by text (for example, `ES91 2100 0418 4502 0005 1332 antes del viernes`) was not protected, and in some cases the IBAN swallowed the next word. It is now trimmed to the valid IBAN and checked against the official length for its country.
+- The result summary no longer says "1 items protected": singular and plural forms are used in every language.
 - Spanish landline numbers grouped as `91 123 45 67` are now detected (Spanish and Catalan).
 
 ### Added
 
 - **Password-encrypted key** (optional): authenticated AES-256-GCM with a key derived via scrypt. Existing plaintext keys keep working. New dependency: `cryptography`.
-- **Interface in 7 languages** (Spanish, English, French, German, Italian, Portuguese and Catalan) with a selector in the header; it follows the Windows language by default.
+- **Interface in 7 languages** (Spanish, English, French, German, Italian, Portuguese (Portugal) and Catalan) with a selector in the header; it follows the Windows language by default.
 - **Protect selection**: select text in the input and add it to the extra words with one click.
+- README in all 7 interface languages (`README.<code>.md`), with screenshots of the real app in each language.
 - Build provenance attestation (GitHub Actions) for the Windows ZIP, as an alternative to code signing.
 - **Highlighting** of the markers in the result, with a toggle.
 - **Extra words**: your own terms (projects, clients, nicknames) that are always protected.

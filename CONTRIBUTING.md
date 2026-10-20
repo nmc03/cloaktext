@@ -33,11 +33,12 @@ CI runs the same three commands. The tests do not need language models: the engi
 - Language packs: URLs and SHA-256 hashes live in `language_packs.py`. Changing a model version means updating both and the license table in `THIRD_PARTY_NOTICES.md`.
 - Never rename keys or placeholder formats that users may already have stored in `cloaktext.json` (`[TYPE_1000]`); the format must stay readable by older keys.
 - Interface strings live in `locales/<code>.py` (one file per language: es, en, fr, de, it, pt, ca; `i18n.py` loads them). Add every new string to **all seven** files; a test fails if a key is missing, a string is left untranslated or the format placeholders differ. Code identifiers, comments and docstrings are in English. Never translate placeholder type names (`PERSONA`, `EMAIL`…) or `cloaktext.json` keys.
+- The README exists in all seven interface languages (`README.md` is the source of truth; `README.<code>.md` mirror it, with the same sections and the same screenshots regenerated per language). When you change `README.md`, update the translations or mention it in the pull request.
 - Commit messages: [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`…).
 
 ## README screenshots
 
-`scripts/doc_screenshots.py` opens the real app on Windows, protects a synthetic sample and saves `docs/images/protect.png`, `restore.png` and the `.es.png` Spanish versions. It refuses to save if another window covers CloakText, but check every image before committing it. Re-run it whenever the interface changes. It uses a temporary key folder and no language model.
+`scripts/doc_screenshots.py` opens the real app on Windows, protects a synthetic sample and saves `docs/images/protect.<code>.png` and `restore.<code>.png` for the 7 interface languages. It refuses to save if another window covers CloakText, but check every image before committing it. Re-run it whenever the interface changes. It uses a temporary key folder and no language model.
 
 ---
 
@@ -76,8 +77,9 @@ La CI ejecuta esos mismos tres comandos. Los tests no necesitan modelos de idiom
 - Paquetes de idioma: las URL y los SHA-256 están en `language_packs.py`. Cambiar la versión de un modelo implica actualizar ambos y la tabla de licencias de `THIRD_PARTY_NOTICES.md`.
 - No cambies el formato de marcadores (`[TIPO_1000]`) que los usuarios ya tienen en su `cloaktext.json`; las claves antiguas deben seguir siendo legibles.
 - Las cadenas de la interfaz están en `locales/<código>.py` (un fichero por idioma: es, en, fr, de, it, pt, ca; `i18n.py` los carga). Añade cada cadena nueva en los **siete** ficheros; un test falla si falta una clave, queda sin traducir o difieren los marcadores de formato. Los identificadores, comentarios y docstrings del código están en inglés. No traduzcas nunca los tipos de marcador (`PERSONA`, `EMAIL`…) ni las claves de `cloaktext.json`.
+- El README existe en los siete idiomas de la interfaz (`README.md` es la fuente de verdad; `README.<código>.md` lo reflejan, con las mismas secciones y capturas regeneradas por idioma). Si cambias `README.md`, actualiza las traducciones o indícalo en el pull request.
 - Mensajes de commit: [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`…).
 
 ## Capturas del README
 
-`scripts/doc_screenshots.py` abre la aplicación real en Windows, protege un ejemplo sintético y guarda `docs/images/protect.png`, `restore.png` y las versiones `.es.png`. Se niega a guardar si otra ventana tapa CloakText, pero revisa cada imagen antes de subirla. Vuelve a ejecutarlo cada vez que cambie la interfaz. Usa una carpeta temporal para la clave y ningún modelo de idioma.
+`scripts/doc_screenshots.py` abre la aplicación real en Windows, protege un ejemplo sintético y guarda `docs/images/protect.<código>.png` y `restore.<código>.png` para los 7 idiomas de la interfaz. Se niega a guardar si otra ventana tapa CloakText, pero revisa cada imagen antes de subirla. Vuelve a ejecutarlo cada vez que cambie la interfaz. Usa una carpeta temporal para la clave y ningún modelo de idioma.

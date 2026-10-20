@@ -6,7 +6,7 @@
 
 <p align="center">
   Protección local y reversible para texto sensible. Sin conexión y de código abierto.<br>
-  <a href="README.md">Read in English</a>
+  <a href="README.md">English</a> · <b>Español</b> · <a href="README.fr.md">Français</a> · <a href="README.de.md">Deutsch</a> · <a href="README.it.md">Italiano</a> · <a href="README.pt.md">Português</a> · <a href="README.ca.md">Català</a>
 </p>
 
 <p align="center">
@@ -120,12 +120,29 @@ python -m pip install -r requirements-dev.txt
 python main.py
 ```
 
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python main.py
+```
+
 ## Desarrollo
 
 ```bash
 python -m pytest
 python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 python -m pip check
+```
+
+```text
+main.py             Interfaz de usuario (Flet)
+i18n.py + locales/  Textos de la interfaz (7 idiomas)
+local_engine.py     Motor de detección y protección reversible
+language_packs.py   Descarga, verificación e instalación de paquetes de idioma
+key_store.py        Persistencia atómica de la clave de restauración
+build.py            Compilación portable para Windows
+scripts/            Herramientas de desarrollo (capturas del README)
+tests/              Pruebas automáticas
 ```
 
 Compilar el ejecutable se describe en [docs/BUILDING.md](docs/BUILDING.md). Para contribuir, consulta [CONTRIBUTING.md](CONTRIBUTING.md); el historial está en [CHANGELOG.md](CHANGELOG.md). Las versiones siguen SemVer.

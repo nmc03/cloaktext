@@ -6,7 +6,7 @@
 
 <p align="center">
   Local, reversible protection for sensitive text. Offline and open source.<br>
-  <a href="README.es.md">Leer en español</a>
+  <b>English</b> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.de.md">Deutsch</a> · <a href="README.it.md">Italiano</a> · <a href="README.pt.md">Português</a> · <a href="README.ca.md">Català</a>
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/protect.png" alt="CloakText replacing an IBAN, an email, a phone number and an ID number with reversible placeholders" width="820">
+  <img src="docs/images/protect.en.png" alt="CloakText replacing an IBAN, an email, a phone number and an ID number with reversible placeholders" width="820">
 </p>
 
 CloakText replaces sensitive data in a text with reversible placeholders such as `[EMAIL_1001]` or `[PERSONA_1000]`, so you can paste the text into a chat, a ticket or an AI assistant without exposing the originals. When you need the real values back, restore them with your local key.
@@ -49,7 +49,7 @@ The mapping between placeholders and originals is saved in `cloaktext.json`, nex
 > Placeholder type names (`PERSONA`, `TELEFONO`, `NIF`…) stay in Spanish in every interface language so that keys created by any version remain compatible.
 
 <p align="center">
-  <img src="docs/images/restore.png" alt="Restoring the original text from the protected text" width="820">
+  <img src="docs/images/restore.en.png" alt="Restoring the original text from the protected text" width="820">
 </p>
 
 ## What it detects
@@ -135,14 +135,14 @@ python -m pip check
 ```
 
 ```text
-main.py               Flet user interface
-i18n.py + locales/     Interface strings (7 languages)
-local_engine.py        Detection and reversible protection engine
-language_packs.py    Download, verification and installation of language packs
-key_store.py          Atomic persistence of the restore key
-build.py              Portable Windows build
-scripts/              Developer tools (README screenshots)
-tests/                Automated tests
+main.py             Flet user interface
+i18n.py + locales/  Interface strings (7 languages)
+local_engine.py     Detection and reversible protection engine
+language_packs.py   Download, verification and installation of language packs
+key_store.py        Atomic persistence of the restore key
+build.py            Portable Windows build
+scripts/            Developer tools (README screenshots)
+tests/              Automated tests
 ```
 
 Building the Windows executable is described in [docs/BUILDING.md](docs/BUILDING.md). See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [CHANGELOG.md](CHANGELOG.md) for the history. Releases follow semantic versioning.
