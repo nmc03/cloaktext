@@ -92,7 +92,7 @@ També pots compilar-lo tu mateix des del codi font (consulta [docs/BUILDING.md]
 
 El paquet base no inclou models lingüístics de tercers. La primera vegada que uses un idioma, CloakText mostra el nom del paquet, la seva mida (uns 400–575 MB) i la seva llicència. Només si l'acceptes, el descarrega dels releases oficials de [`explosion/spacy-models`](https://github.com/explosion/spacy-models), verifica un SHA-256 fixat al codi i l'instal·la a `CloakText\models`. Després, aquest idioma funciona sense connexió.
 
-La detecció per regles (correus electrònics, IBAN, telèfons, documents…) no necessita cap paquet d'idioma; els noms, els llocs i les organitzacions sí.
+Cada protecció necessita el paquet de l'idioma del text: el model d'idioma s'executa juntament amb els detectors per regles (correus electrònics, IBAN, telèfons, documents…). Si falta, CloakText ofereix preparar-lo abans.
 
 ## Protegir la clau amb una contrasenya
 

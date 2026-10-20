@@ -92,7 +92,7 @@ Vous pouvez aussi le compiler vous-même à partir du code source (voir [docs/BU
 
 Le paquet de base ne contient pas de modèles linguistiques tiers. La première fois que vous utilisez une langue, CloakText affiche le nom du paquet, sa taille (environ 400–575 Mo) et sa licence. Seulement si vous acceptez, il le télécharge depuis les releases officielles de [`explosion/spacy-models`](https://github.com/explosion/spacy-models), vérifie un SHA-256 fixé dans le code et l'installe dans `CloakText\models`. Ensuite, cette langue fonctionne hors ligne.
 
-La détection par règles (emails, IBAN, téléphones, identifiants…) ne nécessite pas de paquet de langue ; les noms, lieux et organisations, si.
+Chaque protection nécessite le paquet de langue du texte : le modèle de langue s'exécute avec les détecteurs par règles (emails, IBAN, téléphones, identifiants…). S'il manque, CloakText propose de le préparer d'abord.
 
 ## Protéger la clé par un mot de passe
 

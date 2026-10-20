@@ -92,7 +92,7 @@ You can also build it yourself from source (see [docs/BUILDING.md](docs/BUILDING
 
 The base package does not ship third-party language models. The first time you use a language, CloakText shows the package name, its size (about 400–575 MB) and its license. Only if you accept, it downloads the package from the official [`explosion/spacy-models`](https://github.com/explosion/spacy-models) releases, verifies a SHA-256 pinned in the code, and installs it in `CloakText\models`. Afterwards that language works offline.
 
-Rule-based detection (emails, IBANs, phones, IDs…) does not need a language pack, but names, places and organisations do.
+Every protection run needs the language pack for the text's language: the language model runs together with the rule-based detectors (emails, IBANs, phones, IDs…). If it is missing, CloakText offers to prepare it first.
 
 ## Protecting the key with a password
 

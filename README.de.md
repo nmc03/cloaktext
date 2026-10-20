@@ -92,7 +92,7 @@ Sie können es auch selbst aus dem Quellcode bauen (siehe [docs/BUILDING.md](doc
 
 Das Basispaket enthält keine Sprachmodelle von Drittanbietern. Beim ersten Gebrauch einer Sprache zeigt CloakText den Namen des Pakets, seine Größe (etwa 400–575 MB) und seine Lizenz an. Nur wenn Sie zustimmen, wird es von den offiziellen Releases von [`explosion/spacy-models`](https://github.com/explosion/spacy-models) heruntergeladen, gegen einen im Code festgelegten SHA-256-Wert geprüft und in `CloakText\models` installiert. Danach funktioniert diese Sprache offline.
 
-Die regelbasierte Erkennung (E-Mails, IBANs, Telefonnummern, Ausweisnummern…) benötigt kein Sprachpaket. Namen, Orte und Organisationen dagegen schon.
+Jeder Schutzvorgang benötigt das Sprachpaket der Textsprache: Das Sprachmodell läuft zusammen mit den regelbasierten Erkennern (E-Mails, IBANs, Telefonnummern, Ausweisnummern…). Fehlt es, bietet CloakText an, es zuerst vorzubereiten.
 
 ## Schlüssel mit Passwort schützen
 
