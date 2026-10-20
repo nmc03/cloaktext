@@ -1,7 +1,7 @@
 [project]
 name = "cloaktext"
 version = "1.2.0"
-description = "Protección local y reversible para texto sensible."
+description = "Local, reversible protection for sensitive text."
 license = "MIT"
 authors = [{name = "Nahúm"}]
 readme = "README.md"

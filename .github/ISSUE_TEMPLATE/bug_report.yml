@@ -1,5 +1,5 @@
-name: Informe de error
-description: Notifica un comportamiento incorrecto sin incluir datos sensibles.
+name: Bug report
+description: Report incorrect behaviour without including sensitive data.
 title: "[Bug] "
 labels:
   - bug
@@ -7,40 +7,40 @@ body:
   - type: markdown
     attributes:
       value: |
-        No adjuntes textos reales sensibles, claves de restauración, credenciales ni documentos privados.
+        Do not attach real sensitive texts, restore keys, credentials or private documents.
   - type: input
     id: version
     attributes:
-      label: Versión
+      label: Version
       placeholder: "1.2.0"
     validations:
       required: true
   - type: dropdown
     id: source
     attributes:
-      label: Instalación
+      label: Installation
       options:
-        - Ejecutable Windows
-        - Código fuente
+        - Windows executable
+        - Source code
     validations:
       required: true
   - type: textarea
     id: problem
     attributes:
-      label: Problema
-      description: Describe el comportamiento observado usando datos ficticios.
+      label: Problem
+      description: Describe the observed behaviour using fictitious data.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Comportamiento esperado
+      label: Expected behaviour
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Pasos para reproducir
-      description: Usa únicamente ejemplos inventados o anonimizados.
+      label: Steps to reproduce
+      description: Use only invented or anonymized examples.
     validations:
       required: true

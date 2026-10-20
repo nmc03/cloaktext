@@ -1,14 +1,14 @@
-## Objetivo
+## Purpose
 
-Describe el problema que resuelve el cambio.
+Describe the problem this change solves.
 
-## Cambios
+## Changes
 
-Resume la implementación.
+Summarize the implementation.
 
-## Validación
+## Validation
 
 - [ ] python -m pytest
 - [ ] python -m compileall -q main.py local_engine.py language_packs.py key_store.py i18n.py branding.py version.py
 - [ ] python -m pip check
-- [ ] No contiene datos sensibles, secretos ni artefactos temporales.
+- [ ] Contains no sensitive data, secrets or temporary artifacts.

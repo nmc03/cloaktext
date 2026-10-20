@@ -1,97 +1,98 @@
-# Historial de versiones
+# Changelog
 
-El formato sigue los principios de Keep a Changelog y las versiones usan SemVer.
+The format follows Keep a Changelog principles and versions use SemVer.
 
 ## [1.2.0] - 2026-10-20
 
-### Corregido
+### Fixed
 
-- **Privacidad:** un IBAN válido seguido de texto (por ejemplo, `ES91 2100 0418 4502 0005 1332 antes del viernes`) no se protegía, y en algunos casos el IBAN arrastraba la palabra siguiente. Ahora se recorta al IBAN válido y se comprueba la longitud oficial del país.
-- Los teléfonos fijos españoles con agrupación `91 123 45 67` ahora se detectan (español y catalán).
+- **Privacy:** a valid IBAN followed by text (for example, `ES91 2100 0418 4502 0005 1332 antes del viernes`) was not protected, and in some cases the IBAN swallowed the next word. It is now trimmed to the valid IBAN and checked against the official length for its country.
+- Spanish landline numbers grouped as `91 123 45 67` are now detected (Spanish and Catalan).
 
-### Añadido
+### Added
 
-- **Clave cifrada con contraseña** (opcional): AES-256-GCM con clave derivada por scrypt, autenticada. Las claves antiguas en texto plano siguen funcionando. Nueva dependencia: `cryptography`.
-- **Interfaz en 7 idiomas** (español, inglés, francés, alemán, italiano, portugués y catalán) con selector en la cabecera; por defecto sigue el idioma de Windows.
-- **Proteger selección**: selecciona texto en la entrada y añádelo a las palabras adicionales con un clic.
-- Atestación de procedencia de la compilación (GitHub Actions) para el ZIP de Windows, como alternativa a la firma de código.
-- **Resaltado** de los marcadores en el resultado, con interruptor.
-- **Palabras adicionales**: términos propios (proyectos, clientes, apodos) que siempre se protegen.
-- **Limpieza de entradas antiguas** (menú Clave) con fechas de alta en `cloaktext.dates.json` (sin datos originales).
-- Carpeta de datos alternativa (`%LOCALAPPDATA%\CloakText`) cuando la carpeta de la aplicación no admite escritura.
-- Pruebas de regresión para IBAN, teléfonos y DNI con letra incorrecta (se protege a propósito).
-- Capturas reales en el README y script `scripts/doc_screenshots.py` para regenerarlas.
-- `PRIVACY.md`, `README.es.md` y guía de contribución ampliada (inglés y español).
+- **Password-encrypted key** (optional): authenticated AES-256-GCM with a key derived via scrypt. Existing plaintext keys keep working. New dependency: `cryptography`.
+- **Interface in 7 languages** (Spanish, English, French, German, Italian, Portuguese and Catalan) with a selector in the header; it follows the Windows language by default.
+- **Protect selection**: select text in the input and add it to the extra words with one click.
+- Build provenance attestation (GitHub Actions) for the Windows ZIP, as an alternative to code signing.
+- **Highlighting** of the markers in the result, with a toggle.
+- **Extra words**: your own terms (projects, clients, nicknames) that are always protected.
+- **Cleanup of old entries** (Key menu) with creation dates stored in `cloaktext.dates.json` (no original data).
+- Alternative data folder (`%LOCALAPPDATA%\CloakText`) used when the application folder is not writable.
+- Regression tests for IBAN, phone numbers and DNI with an incorrect letter (it is protected on purpose).
+- Real screenshots in the README and the `scripts/doc_screenshots.py` script to regenerate them.
+- `PRIVACY.md`, `README.es.md` and an expanded contribution guide (English and Spanish).
 
-### Cambiado
+### Changed
 
-- **Código en inglés**: identificadores, módulos (`motor_local.py` → `local_engine.py`, `language_models.py` → `language_packs.py`), comentarios y docstrings. No cambia ningún formato persistido (`cloaktext.json`, tipos de marcador, claves de ajustes).
-- Pasaportes y NINO solo coinciden en mayúsculas (menos falsos positivos como `abc123456`).
-- El NIF portugués valida su dígito de control (antes protegía cualquier número de 9 cifras).
-- `anonimizar()` y `analizar_spans()` aceptan un parámetro opcional `terminos`.
+- **Code in English**: identifiers, modules (`motor_local.py` → `local_engine.py`, `language_models.py` → `language_packs.py`), comments and docstrings. No persisted format changes (`cloaktext.json`, marker types, settings keys).
+- Passports and NINO only match in uppercase (fewer false positives such as `abc123456`).
+- The Portuguese NIF now validates its check digit (it previously protected any 9-digit number).
+- `anonimizar()` and `analizar_spans()` accept an optional `terminos` parameter.
 
-- README, SECURITY y CONTRIBUTING reescritos en inglés con versión en español; corrección de erratas de género en SECURITY.
+- README, SECURITY and CONTRIBUTING rewritten in English with a Spanish version; gender typo corrections in SECURITY.
 
 ## [1.1.0] - 2026-10-07
 
-Versión de mantenimiento: workflow de compilación para Windows y documentación actualizados.
+Maintenance release: Windows build workflow and documentation updated.
 
 ## [1.0.0] - 2026-10-03
 
-Primera versión preparada para distribución de escritorio.
+First version prepared for desktop distribution.
 
-### Añadido
+### Added
 
-- Dos acciones de limpieza separadas: Limpiar para los cuadros de texto y Limpiar JSON con confirmación.
-- Logo embebido en la interfaz para que también se muestre en el encabezado del ejecutable.
+- Two separate cleanup actions: Clear for the text boxes and Clear JSON with confirmation.
+- Logo embedded in the interface so it also appears in the executable header.
 
-- `cloaktext.json` predeterminado y persistente junto a la aplicación; se actualiza automáticamente y no se muestra en pantalla.
-- Exportación de la clave JSON y selección opcional de un JSON personalizado al restaurar.
-- Modelos spaCy grandes (`lg`) para los siete idiomas, descargados bajo demanda y verificados por SHA-256.
-- Los modelos se guardan en la carpeta portable `models` junto al ejecutable.
+- Default `cloaktext.json` that is persistent next to the application; it is updated automatically and is not shown on screen.
+- Export of the JSON key and optional choice of a custom JSON when restoring.
+- Large spaCy models (`lg`) for all seven languages, downloaded on demand and verified by SHA-256.
+- Models are stored in the portable `models` folder next to the executable.
 
-- Interfaz responsive orientada a usuarios no técnicos.
-- Carga y guardado de claves de restauración en JSON.
-- Copia directa del texto protegido y de la clave de restauración.
-- Resumen de tipos de datos detectados.
-- Preparación guiada de idiomas en el primer uso.
-- Soporte de interfaz para español, inglés, francés, alemán, italiano, portugués y catalán.
-- Detección estructurada de IPv4 y validación MOD-97 de IBAN.
-- Procesamiento por bloques para textos extensos.
-- Pruebas automatizadas del motor.
-- CI para Linux y compilación reproducible para Windows.
-- Paquete Windows portable sin redistribuir modelos lingüísticos de terceros.
-- Descarga opcional de modelos spaCy grandes desde el origen oficial con verificación SHA-256.
-- Icono y metadatos del ejecutable.
+- Responsive interface aimed at non-technical users.
+- Loading and saving of restore keys in JSON.
+- Direct copy of the protected text and of the restore key.
+- Summary of the detected data types.
+- Guided language preparation on first use.
+- Interface support for Spanish, English, French, German, Italian, Portuguese and Catalan.
+- Structured IPv4 detection and IBAN MOD-97 validation.
+- Block processing for long texts.
+- Automated engine tests.
+- CI for Linux and reproducible Windows build.
+- Portable Windows package without redistributing third-party language models.
+- Optional download of large spaCy models from the official source with SHA-256 verification.
+- Executable icon and metadata.
 
-### Cambiado
+### Changed
 
-- Migración de Flet 0.24 a Flet 1.0.
-- Actualización a spaCy 3.8.
-- Gestión de solapamientos de entidades con menor consumo de memoria.
-- Los patrones estructurados tienen prioridad sobre detecciones NER solapadas.
-- Manejo de errores y estados de procesamiento más claro.
-- El motor evita colisiones con tokens ya presentes en el texto.
+- Migration from Flet 0.24 to Flet 1.0.
+- Upgrade to spaCy 3.8.
+- Entity overlap handling with lower memory usage.
+- Structured patterns take priority over overlapping NER detections.
+- Clearer error handling and processing states.
+- The engine avoids collisions with tokens already present in the text.
 
-### Corregido
+### Fixed
 
-- Liberación inmediata del modelo grande anterior al cambiar de idioma, con recolección de memoria forzada.
-- Los cuadros de texto ocupan todo el ancho disponible dentro de cada tarjeta.
-- La descripción del proceso Windows se muestra como CloakText.
+- Immediate release of the previous large model when switching language, with forced garbage collection.
+- The text boxes fill the full available width inside each card.
+- The Windows process description is shown as CloakText.
 
-- Filtro conservador de falsos positivos NER para saludos conversacionales obvios como `hola`.
+- Conservative NER false-positive filter for obvious conversational greetings such as `hola`.
 
-- Compatibilidad de inicio con Flet 1.0.3: el selector de idioma usa `on_select`, el evento admitido por `Dropdown`.
-- Prueba de construcción completa de la interfaz para detectar incompatibilidades de API antes de generar el ejecutable.
+- Startup compatibility with Flet 1.0.3: the language selector uses `on_select`, the event supported by `Dropdown`.
+- Full interface build test to detect API incompatibilities before generating the executable.
 
-### Seguridad
+### Security
 
-- Validación estricta del formato del clave de restauración.
-- El modelo no se descarga de memoria mientras está procesando.
-- Avisos explícitos sobre la sensibilidad de la clave de restauración.
-- Sin mensajes de error internos expuestos al usuario final.
+- Strict validation of the restore key format.
+- The model is not unloaded from memory while processing.
+- Explicit warnings about the sensitivity of the restore key.
+- No internal error messages exposed to the end user.
 
 ## [0.1.0] - 2026-06-08
 
-- Prototipo inicial de CloakText.
-- Anonimización reversible local con Flet y spaCy.
+- Initial CloakText prototype.
+- Reversible local anonymization with Flet and spaCy.
+</content>
