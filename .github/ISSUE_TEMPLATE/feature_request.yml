@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an improvement for CloakText.
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Need
+      description: What usage problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the behaviour you expect.
+    validations:
+      required: true

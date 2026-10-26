@@ -1,0 +1,46 @@
+name: Bug report
+description: Report incorrect behaviour without including sensitive data.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach real sensitive texts, restore keys, credentials or private documents.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "1.2.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Installation
+      options:
+        - Windows executable
+        - Source code
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the observed behaviour using fictitious data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use only invented or anonymized examples.
+    validations:
+      required: true
