@@ -73,7 +73,7 @@ Le versioni stabili sono pubblicate su [GitHub Releases](https://github.com/nmc0
 ### Verificare il download
 
 ```powershell
-Get-FileHash .\CloakText-1.2.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.3-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -83,7 +83,7 @@ I hash devono coincidere. L'eseguibile **non è firmato digitalmente** (un certi
 2. un'attestazione di provenienza che dimostra che lo ZIP è stato generato dal workflow di GitHub Actions di questo repository a partire da un commit specifico:
 
 ```powershell
-gh attestation verify .\CloakText-1.2.2-windows-x64.zip --repo nmc03/cloaktext
+gh attestation verify .\CloakText-1.2.3-windows-x64.zip --repo nmc03/cloaktext
 ```
 
 Puoi anche compilarlo tu stesso dal codice sorgente (vedi [docs/BUILDING.md](docs/BUILDING.md)).

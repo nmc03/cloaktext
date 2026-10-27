@@ -4,6 +4,8 @@ The format follows Keep a Changelog principles and versions use SemVer.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-28
+
 ### Fixed
 
 - A failed language-pack download no longer leaves "Downloading the pack…" on screen (found in the fourth manual QA pass, with a broken proxy).

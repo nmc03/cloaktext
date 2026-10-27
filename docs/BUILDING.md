@@ -47,7 +47,7 @@ dist/
 ├── CloakText/
 │   ├── CloakText.exe
 │   └── ...
-├── CloakText-1.2.2-windows-x64.zip
+├── CloakText-1.2.3-windows-x64.zip
 └── SHA256SUMS.txt
 ```
 
@@ -78,8 +78,8 @@ Antes del tag:
 5. crea `vX.Y.Z`.
 
 ```powershell
-git tag v1.2.2
-git push origin v1.2.2
+git tag v1.2.3
+git push origin v1.2.3
 ```
 
 ## Code signing (not done today)
@@ -90,7 +90,7 @@ Releases are **unsigned**, so Windows shows an "Unknown publisher" / SmartScreen
 - a GitHub build-provenance attestation for the ZIP, which proves it was built by this repository's workflow from a given commit:
 
 ```powershell
-gh attestation verify .\CloakText-1.2.2-windows-x64.zip --repo nmc03/cloaktext
+gh attestation verify .\CloakText-1.2.3-windows-x64.zip --repo nmc03/cloaktext
 ```
 
 If you later obtain a code-signing certificate, sign `dist/CloakText/CloakText.exe` **before** `build.py` zips it (or re-create the ZIP and `SHA256SUMS.txt` afterwards):

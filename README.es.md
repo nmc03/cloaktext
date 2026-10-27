@@ -73,7 +73,7 @@ Las versiones estables están en [GitHub Releases](https://github.com/nmc03/cloa
 ### Verificar la descarga
 
 ```powershell
-Get-FileHash .\CloakText-1.2.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.3-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -83,7 +83,7 @@ Los hashes deben coincidir. El ejecutable **no está firmado digitalmente** (un 
 2. una atestación de procedencia que demuestra que el ZIP lo generó el workflow de GitHub Actions de este repositorio a partir de un commit concreto:
 
 ```powershell
-gh attestation verify .\CloakText-1.2.2-windows-x64.zip --repo nmc03/cloaktext
+gh attestation verify .\CloakText-1.2.3-windows-x64.zip --repo nmc03/cloaktext
 ```
 
 También puedes compilarlo tú desde el código fuente (consulta [docs/BUILDING.md](docs/BUILDING.md)).

@@ -73,7 +73,7 @@ As versões estáveis estão publicadas nas [GitHub Releases](https://github.com
 ### Verificar a transferência
 
 ```powershell
-Get-FileHash .\CloakText-1.2.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.3-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -83,7 +83,7 @@ Os hashes devem coincidir. O executável **não tem assinatura digital** (um cer
 2. uma atestação de proveniência que demonstra que o ZIP foi gerado pelo workflow do GitHub Actions deste repositório a partir de um commit concreto:
 
 ```powershell
-gh attestation verify .\CloakText-1.2.2-windows-x64.zip --repo nmc03/cloaktext
+gh attestation verify .\CloakText-1.2.3-windows-x64.zip --repo nmc03/cloaktext
 ```
 
 Também pode compilá-lo a partir do código-fonte (consulte [docs/BUILDING.md](docs/BUILDING.md)).

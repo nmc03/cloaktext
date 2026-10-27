@@ -73,7 +73,7 @@ Stable versions are published on [GitHub Releases](https://github.com/nmc03/cloa
 ### Verify the download
 
 ```powershell
-Get-FileHash .\CloakText-1.2.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.3-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -83,7 +83,7 @@ The hashes must match. The executable is **not code-signed** (a certificate cost
 2. a build-provenance attestation that proves the ZIP was built by this repository's GitHub Actions workflow from a specific commit:
 
 ```powershell
-gh attestation verify .\CloakText-1.2.2-windows-x64.zip --repo nmc03/cloaktext
+gh attestation verify .\CloakText-1.2.3-windows-x64.zip --repo nmc03/cloaktext
 ```
 
 You can also build it yourself from source (see [docs/BUILDING.md](docs/BUILDING.md)).

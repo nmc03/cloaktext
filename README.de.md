@@ -73,7 +73,7 @@ Stabile Versionen gibt es auf [GitHub Releases](https://github.com/nmc03/cloakte
 ### Download prüfen
 
 ```powershell
-Get-FileHash .\CloakText-1.2.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\CloakText-1.2.3-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -83,7 +83,7 @@ Die Hashes müssen übereinstimmen. Die ausführbare Datei ist **nicht code-sign
 2. eine Herkunftsbescheinigung (Build-Provenance-Attestation), die belegt, dass die ZIP-Datei vom GitHub-Actions-Workflow dieses Repositorys aus einem bestimmten Commit erstellt wurde:
 
 ```powershell
-gh attestation verify .\CloakText-1.2.2-windows-x64.zip --repo nmc03/cloaktext
+gh attestation verify .\CloakText-1.2.3-windows-x64.zip --repo nmc03/cloaktext
 ```
 
 Sie können es auch selbst aus dem Quellcode bauen (siehe [docs/BUILDING.md](docs/BUILDING.md)).

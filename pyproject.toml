@@ -1,6 +1,6 @@
 [project]
 name = "cloaktext"
-version = "1.2.2"
+version = "1.2.3"
 description = "Local, reversible protection for sensitive text."
 license = "MIT"
 authors = [{name = "nmc03"}]
