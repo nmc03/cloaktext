@@ -2,6 +2,13 @@
 
 The format follows Keep a Changelog principles and versions use SemVer.
 
+## [Unreleased]
+
+### Fixed
+
+- A failed language-pack download no longer leaves "Downloading the pack…" on screen (found in the fourth manual QA pass, with a broken proxy).
+- Phone numbers in international or mobile formats are now detected for French (`+33 6 12 34 56 78`), Italian (`+39 333 123 4567`, `333 123 4567`) and German (`+49 151 12345678`).
+
 ## [1.2.2] - 2026-10-26
 
 ### Fixed

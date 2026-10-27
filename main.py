@@ -1110,12 +1110,12 @@ class CloakTextApp:
         self.page.update()
         try:
             await asyncio.to_thread(self.engine.install_model, language)
-            self.txt_process_status.value = ""
             self._snack(tr("model.installed", name=name))
         except Exception:
             logger.exception("Could not install the language pack %s", language)
             self._snack(tr("model.install_failed"))
         finally:
+            self.txt_process_status.value = ""
             self._set_busy_state(False)
             self._refresh_model_status()
             self.page.update()

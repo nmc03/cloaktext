@@ -251,3 +251,24 @@ def test_normalize_terms_limits_count_and_length():
 def test_document_labels_are_not_treated_as_organisations(label):
     assert _is_ner_false_positive(label, "en")
     assert _is_ner_false_positive(label, "es")
+
+
+@pytest.mark.parametrize(
+    ("language", "phone"),
+    [
+        ("fr", "+33 6 12 34 56 78"),
+        ("fr", "06 12 34 56 78"),
+        ("fr", "+33 1 23 45 67 89"),
+        ("it", "+39 333 123 4567"),
+        ("it", "333 123 4567"),
+        ("it", "06 12345678"),
+        ("de", "+49 151 12345678"),
+        ("de", "030 12345678"),
+    ],
+)
+def test_international_and_mobile_phone_formats(engine, language, phone):
+    mapping = {}
+    result = engine.protect(f"Tel {phone} fin", mapping, language=language)
+
+    assert result == "Tel [TELEFONO_1000] fin"
+    assert mapping["[TELEFONO_1000]"] == phone

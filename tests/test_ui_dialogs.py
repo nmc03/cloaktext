@@ -380,3 +380,18 @@ def test_ui_language_changes_through_all_seven_languages(make_app):
         assert app.txt_terms.value == "Fictional project"
         assert app.txt_terms.visible
         assert len(page.controls) == control_count
+
+
+def test_failed_language_pack_install_clears_progress_status(make_app):
+    page, app = make_app()
+
+    def failing_install(_language):
+        raise ConnectionError("offline")
+
+    app.engine.install_model = failing_install
+    event = SimpleNamespace(control=SimpleNamespace(data="es"))
+
+    asyncio.run(app._on_install_language(event))
+
+    assert app.txt_process_status.value == ""
+    assert not app.btn_run.disabled
